@@ -124,8 +124,8 @@ async def handle_webhook(request: web.Request):
 
 async def start_webhook():
     app = web.Application()
-    app.add_routes([web.post("/", handle_webhook)])
-    await web._run_app(app, host="localhost", port=8888)
+    app.add_routes([web.post("*", handle_webhook)])
+    await web._run_app(app, host="localhost", port=8888, print=lambda _: None)
 
 
 async def async_main(repo_dir: str, log_dir: str):
@@ -136,8 +136,6 @@ async def async_main(repo_dir: str, log_dir: str):
     current_log_dir = os.path.join(log_dir, commit)
     if not os.path.isdir(current_log_dir):
         os.mkdir(current_log_dir)
-
-    webhook_task = asyncio.create_task(start_webhook())
 
     try_counter = 0
     while True:
