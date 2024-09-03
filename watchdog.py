@@ -118,7 +118,7 @@ async def wait_for_process_or_signal(
 
 
 async def handle_webhook(request: web.Request):
-    data = await request.read()
+    data = await request.content.read()
     print(data)
     return web.Response()
 
