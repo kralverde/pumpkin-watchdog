@@ -199,8 +199,11 @@ async def async_main(
     webhook_host: str,
     webhook_port: int,
 ):
-    webhook_task = asyncio.create_task(webhook_runner(webhook_host, webhook_port))
-    binary_task = asyncio.create_task(binary_runner(repo_path, log_path))
+    update_queue = asyncio.Queue()
+    webhook_task = asyncio.create_task(
+        webhook_runner(webhook_host, webhook_port, update_queue)
+    )
+    binary_task = asyncio.create_task(binary_runner(repo_path, log_path, update_queue))
 
     completed, pending = await asyncio.wait(
         [webhook_task, binary_task], return_when=asyncio.FIRST_EXCEPTION
