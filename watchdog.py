@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import sys
 import urllib.parse
@@ -100,10 +101,10 @@ async def start_binary(
 
 async def wait_for_process_or_signal(
     proc: asyncio.subprocess.Process,
-    kill_proc: asyncio.Event,
-):
+    update_queue: asyncio.Queue[str],
+) -> Optional[str]:
     proc_task = asyncio.create_task(proc.wait())
-    kill_task = asyncio.create_task(kill_proc.wait())
+    kill_task = asyncio.create_task(update_queue.get())
     complete, _ = await asyncio.wait(
         [proc_task, kill_task], return_when=asyncio.FIRST_COMPLETED
     )
@@ -111,39 +112,49 @@ async def wait_for_process_or_signal(
     kill_task.cancel()
     if proc_task in complete:
         return_code = proc_task.result()
-        print(f"complete: {return_code}")
+        print(f"binary returned code {return_code}")
+        return None
     else:
         proc.terminate()
         return_code = await proc_task
-        print(f"killed: {return_code}")
+        print(f"binary was terminated with code {return_code}")
+
+        new_commit = kill_task.result()
+        while not update_queue.empty():
+            new_commit = await update_queue.get()
+
+        return new_commit
 
 
-async def handle_webhook(request: web.Request):
+async def handle_webhook(queue: asyncio.Queue[str], request: web.Request):
     raw_data = await request.text()
     converted_data = urllib.parse.unquote(raw_data)
-    print(converted_data)
+    json_data = json.loads(converted_data[len("payload=") :])
+    if json_data["ref"] == "refs/heads/master":
+        await queue.put(json_data["after"])
+
     return web.Response()
 
 
-async def webhook_runner(host: str, port: int):
+async def webhook_runner(host: str, port: int, update_queue: asyncio.Queue[str]):
     app = web.Application()
-    app.add_routes([web.post("/{_}", handle_webhook)])
+    app.add_routes([web.post("/{_}", lambda x: handle_webhook(update_queue, x))])
     print(f"webhook listening at {host}:{port}")
     await web._run_app(app, host=host, port=port, print=lambda _: None)
 
 
-async def binary_runner(repo_dir: str, log_dir: str):
+async def binary_runner(repo_dir: str, log_dir: str, update_queue: asyncio.Queue[str]):
     await update_git_repo(repo_dir)
-    commit = await get_repo_description(repo_dir)
     await build_binary(repo_dir)
 
+    commit = await get_repo_description(repo_dir)
     current_log_dir = os.path.join(log_dir, commit)
     if not os.path.isdir(current_log_dir):
         os.mkdir(current_log_dir)
 
+    executable_path = os.path.join(repo_dir, "./target/debug/pumpkin")
     try_counter = 0
     while True:
-        executable_path = os.path.join(repo_dir, "./target/debug/pumpkin")
         stdout_path = os.path.join(current_log_dir, f"stdout_{try_counter}.txt")
         stderr_path = os.path.join(current_log_dir, f"stderr_{try_counter}.txt")
 
@@ -157,15 +168,27 @@ async def binary_runner(repo_dir: str, log_dir: str):
         )
         print("The binary has started")
 
-        kill_event = asyncio.Event()
-        await wait_for_process_or_signal(proc, kill_event)
+        new_commit = await wait_for_process_or_signal(proc, update_queue)
 
         stdout_log.close()
         stderr_log.close()
 
-        if not kill_event.is_set():
+        if new_commit is None:
             print("The binary died for an unknown reason! Sleeping for 10 minutes.")
             await asyncio.sleep(10 * 60)
+        else:
+            print("New commit detected; rebuilding and restarting.")
+            while not update_queue.empty():
+                await update_git_repo(repo_dir)
+                await build_binary(repo_dir)
+
+            commit = await get_repo_description(repo_dir)
+            current_log_dir = os.path.join(log_dir, commit)
+            if not os.path.isdir(current_log_dir):
+                os.mkdir(current_log_dir)
+
+            try_counter = 0
+            continue
 
         try_counter += 1
 
