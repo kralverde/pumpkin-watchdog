@@ -124,7 +124,7 @@ async def handle_webhook(request: web.Request):
 
 async def start_webhook():
     app = web.Application()
-    app.add_routes([web.post("*", handle_webhook)])
+    app.add_routes([web.post("/{_}", handle_webhook)])
     await web._run_app(app, host="127.0.0.1", port=8888, print=print)
 
 
