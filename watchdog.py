@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+import urllib.parse
 
 from aiohttp import web
 
@@ -118,8 +119,9 @@ async def wait_for_process_or_signal(
 
 
 async def handle_webhook(request: web.Request):
-    data = await request.text()
-    print(data)
+    raw_data = await request.text()
+    converted_data = urllib.parse.unquote(raw_data)
+    print(converted_data)
     return web.Response()
 
 
