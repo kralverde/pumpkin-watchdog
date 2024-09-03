@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 
+from aiohttp import web
 
 from typing import IO, Any, Optional
 
@@ -116,21 +117,15 @@ async def wait_for_process_or_signal(
         print(f"killed: {return_code}")
 
 
-async def handle_webhook(reader: asyncio.StreamReader, writer):
-    print(await reader.read())
+async def handle_webhook(request: web.Request):
+    print(request)
+    return web.Response()
 
 
-async def start_webhook():
-    server = await asyncio.start_server(
-        handle_webhook,
-        "127.0.0.1",
-        8888,
-    )
-    addrs = ", ".join(str(sock.getsockname()) for sock in server.sockets)
-    print(f"Serving webhook on {addrs}")
-
-    async with server:
-        await server.serve_forever()
+def start_webhook():
+    app = web.Application()
+    app.add_routes([web.post("/", handle_webhook)])
+    web.run_app(app, host="localhost", port=8888)
 
 
 async def async_main(repo_dir: str, log_dir: str):
@@ -142,7 +137,7 @@ async def async_main(repo_dir: str, log_dir: str):
     if not os.path.isdir(current_log_dir):
         os.mkdir(current_log_dir)
 
-    webhook_task = asyncio.create_task(start_webhook())
+    start_webhook()
 
     try_counter = 0
     while True:
