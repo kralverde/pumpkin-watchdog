@@ -125,7 +125,7 @@ async def handle_webhook(request: web.Request):
 def start_webhook():
     app = web.Application()
     app.add_routes([web.post("/", handle_webhook)])
-    web.run_app(app, host="localhost", port=8888)
+    web.run_app(app, host="localhost", port=8888, loop=asyncio.get_event_loop())
 
 
 async def async_main(repo_dir: str, log_dir: str):
