@@ -118,8 +118,9 @@ async def wait_for_process_or_signal(
 
 
 async def handle_webhook(request: web.Request):
-    for k, v in request.items():
-        print(f"{k}: {v}")
+    data = await request.json()
+    if data["action"] == "push":
+        print(data)
     return web.Response()
 
 
