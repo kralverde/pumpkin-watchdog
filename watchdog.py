@@ -118,17 +118,18 @@ async def wait_for_process_or_signal(
 
 
 async def handle_webhook(request: web.Request):
-    print(request)
+    print(request.items())
     return web.Response()
 
 
-async def start_webhook():
+async def webhook_runner(host: str, port: int):
     app = web.Application()
     app.add_routes([web.post("/{_}", handle_webhook)])
-    await web._run_app(app, host="127.0.0.1", port=8888, print=print)
+    print(f"webhook listening at {host}:{port}")
+    await web._run_app(app, host=host, port=port, print=lambda _: None)
 
 
-async def async_main(repo_dir: str, log_dir: str):
+async def binary_runner(repo_dir: str, log_dir: str):
     await update_git_repo(repo_dir)
     commit = await get_repo_description(repo_dir)
     await build_binary(repo_dir)
@@ -136,9 +137,6 @@ async def async_main(repo_dir: str, log_dir: str):
     current_log_dir = os.path.join(log_dir, commit)
     if not os.path.isdir(current_log_dir):
         os.mkdir(current_log_dir)
-
-    webhook_task = asyncio.create_task(start_webhook())
-    print("webhook listening")
 
     try_counter = 0
     while True:
@@ -169,6 +167,29 @@ async def async_main(repo_dir: str, log_dir: str):
         try_counter += 1
 
 
+async def async_main(
+    repo_path: str,
+    log_path: str,
+    webhook_host: str,
+    webhook_port: int,
+):
+    webhook_task = asyncio.create_task(webhook_runner(webhook_host, webhook_port))
+    binary_task = asyncio.create_task(binary_runner(repo_path, log_path))
+
+    completed, pending = await asyncio.wait(
+        [webhook_task, binary_task], return_when=asyncio.FIRST_EXCEPTION
+    )
+
+    for complete in completed:
+        if exc := complete.exception():
+            raise exc
+
+    for pend in pending:
+        pend.cancel()
+
+    await asyncio.wait(pending)
+
+
 def main():
     repo_path = sys.argv[1]
     log_path = sys.argv[2]
@@ -176,6 +197,8 @@ def main():
         async_main(
             os.path.realpath(repo_path),
             os.path.realpath(log_path),
+            "127.0.0.1",
+            8888,
         )
     )
 
