@@ -314,7 +314,7 @@ async def binary_runner(
                 try_counter = new_counter + 1
 
     while True:
-        print("attempting to start the binary")
+        print(f"attempting to start the binary (try count: {try_counter})")
         stdout_path = os.path.join(current_log_dir, f"stdout_{try_counter}.txt")
         stderr_path = os.path.join(current_log_dir, f"stderr_{try_counter}.txt")
 
