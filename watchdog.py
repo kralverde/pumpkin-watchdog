@@ -93,10 +93,13 @@ async def start_binary(
     stdout_log: IO[Any],
     stderr_log: IO[Any],
 ):
+    env = os.environ.copy()
+    env["RUST_BACKTRACE"] = "1"
     proc = await asyncio.subprocess.create_subprocess_exec(
         binary_path,
         stdout=stdout_log,
         stderr=stderr_log,
+        env=env,
     )
     return proc
 
