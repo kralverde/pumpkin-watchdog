@@ -302,7 +302,14 @@ async def binary_runner(
         os.mkdir(current_log_dir)
 
     executable_path = os.path.join(repo_dir, "./target/debug/pumpkin")
+
     try_counter = 0
+    for entry in os.scandir(current_log_dir):
+        if entry.name.startswith("stdout_"):
+            new_counter = int(entry.name.replace("stdout_", "").replace(".txt", ""))
+            if new_counter > try_counter:
+                try_counter = new_counter + 1
+
     while True:
         print("attempting to start the binary")
         stdout_path = os.path.join(current_log_dir, f"stdout_{try_counter}.txt")
