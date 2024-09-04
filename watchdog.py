@@ -310,7 +310,7 @@ async def binary_runner(
     for entry in os.scandir(current_log_dir):
         if entry.name.startswith("stdout_"):
             new_counter = int(entry.name.replace("stdout_", "").replace(".txt", ""))
-            if new_counter > try_counter:
+            if new_counter >= try_counter:
                 try_counter = new_counter + 1
 
     while True:
