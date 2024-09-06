@@ -6,7 +6,7 @@ import urllib.parse
 
 from aiohttp import web
 
-from typing import IO, Any, List, Optional
+from typing import IO, Any, List, Optional, Union
 
 
 class SubprocessError(Exception):
@@ -161,16 +161,24 @@ async def handle_webhook(queue: asyncio.Queue[str], request: web.Request):
     return web.Response()
 
 
-async def handle_index(request: web.Request):
-    return web.Response(body="TEST")
+async def handle_index(
+    commit_wrapper: List[Union[str, int]],
+    request: web.Request,
+):
+    return web.Response(body=f"{commit_wrapper[0]} {commit_wrapper[1]}")
 
 
-async def webhook_runner(host: str, port: int, update_queue: asyncio.Queue[str]):
+async def webhook_runner(
+    host: str,
+    port: int,
+    commit_wrapper: List[Union[str, int]],
+    update_queue: asyncio.Queue[str],
+):
     app = web.Application()
     app.add_routes(
         [
             web.post("/watchdog", lambda x: handle_webhook(update_queue, x)),
-            web.get("/", handle_index),
+            web.get("/", lambda x: handle_index(commit_wrapper, x)),
         ]
     )
     print(f"webhook listening at {host}:{port}")
@@ -320,6 +328,7 @@ async def minecraft_runner(
 async def binary_runner(
     repo_dir: str,
     log_dir: str,
+    commit_wrapper: List[Union[str, int]],
     update_queue: asyncio.Queue[str],
     mc_queue: asyncio.Queue[Optional[str]],
     mc_lock: asyncio.Lock,
@@ -372,6 +381,8 @@ async def binary_runner(
             if new_counter >= try_counter:
                 try_counter = new_counter + 1
 
+    commit_wrapper[0] = commit
+    commit_wrapper[1] = try_counter
     while True:
         print(f"attempting to start the binary (try count: {try_counter})")
         stdout_path = os.path.join(current_log_dir, f"stdout_{try_counter}.txt")
@@ -449,9 +460,12 @@ async def binary_runner(
                 os.mkdir(current_log_dir)
 
             try_counter = 0
+            commit_wrapper[0] = commit
+            commit_wrapper[1] = try_counter
             continue
 
         try_counter += 1
+        commit_wrapper[1] = try_counter
 
 
 async def async_main(
@@ -466,13 +480,21 @@ async def async_main(
     mc_queue = asyncio.Queue()
     mc_lock = asyncio.Lock()
 
+    commit_wrapper = ["0", 0]
+
     webhook_task = asyncio.create_task(
-        webhook_runner(webhook_host, webhook_port, update_queue)
+        webhook_runner(
+            webhook_host,
+            webhook_port,
+            commit_wrapper,
+            update_queue,
+        )
     )
     binary_task = asyncio.create_task(
         binary_runner(
             repo_path,
             log_path,
+            commit_wrapper,
             update_queue,
             mc_queue,
             mc_lock,
