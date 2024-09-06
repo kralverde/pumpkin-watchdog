@@ -193,7 +193,8 @@ async def handle_index(
     return web.Response(
         body=INDEX_DATA.replace("{{commit}}", str(commit_wrapper[0]))
         .replace("{{count}}", str(commit_wrapper[1]))
-        .replace("{{name}}", str(commit_wrapper[2]))
+        .replace("{{name}}", str(commit_wrapper[2])),
+        content_type="text/html",
     )
 
 
