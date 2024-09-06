@@ -170,7 +170,7 @@ async def webhook_runner(host: str, port: int, update_queue: asyncio.Queue[str])
     app.add_routes(
         [
             web.post("/watchdog", lambda x: handle_webhook(update_queue, x)),
-            web.get("/{_}", handle_index),
+            web.get("/", handle_index),
         ]
     )
     print(f"webhook listening at {host}:{port}")
@@ -358,6 +358,7 @@ async def binary_runner(
             print(f"!WARNING! Failed to get commit: {e}\nSleeping for 10 minutes...")
             await asyncio.sleep(10 * 60)
 
+    print(f"starting commit: {commit}")
     current_log_dir = os.path.join(log_dir, commit)
     if not os.path.isdir(current_log_dir):
         os.mkdir(current_log_dir)
@@ -442,6 +443,7 @@ async def binary_runner(
                     )
                     await asyncio.sleep(10 * 60)
 
+            print(f"new commit: {commit}")
             current_log_dir = os.path.join(log_dir, commit)
             if not os.path.isdir(current_log_dir):
                 os.mkdir(current_log_dir)
