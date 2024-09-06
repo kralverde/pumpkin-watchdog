@@ -32,9 +32,26 @@ class SubprocessError(Exception):
         result = ""
         if self.stdout:
             result += f"STDOUT: {self.stdout}"
+            if self.stderr:
+                result += "\n\n"
         if self.stderr:
             result += f"STDERR: {self.stderr}"
         return result
+
+
+async def update_rust():
+    print("updating rust")
+    proc = await asyncio.subprocess.create_subprocess_shell(
+        "rustup update",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    exit_code = await proc.wait()
+    if exit_code != 0:
+        raise SubprocessError(
+            await proc.stdout.read() if proc.stdout else b"",
+            await proc.stderr.read() if proc.stderr else b"",
+        )
 
 
 async def update_git_repo(repo_dir: str):
@@ -202,62 +219,65 @@ async def mc_write_var_int(num: int, writer: asyncio.StreamWriter):
 async def handle_mc(
     current_error: List[str], reader: asyncio.StreamReader, writer: asyncio.StreamWriter
 ):
-    packet_length, _ = await mc_read_var_int(reader)
-    packet_id, id_bytes = await mc_read_var_int(reader)
+    try:
+        packet_length, _ = await mc_read_var_int(reader)
+        packet_id, id_bytes = await mc_read_var_int(reader)
 
-    reason_text = f"{current_error[0]}"
-    data = {"text": reason_text}
+        reason_text = f"{current_error[0]}"
+        data = {"text": reason_text}
 
-    if packet_id == 0:
-        protocol_version = await mc_read_var_int(reader)
-        server_address_length = await mc_read_var_int(reader)
-        if server_address_length[0] > 255:
-            raise MCException("Server address is too big")
-        _ = await reader.read(server_address_length[0])
-        _ = await reader.read(2)
-        next_state = await mc_read_var_int(reader)
+        if packet_id == 0:
+            protocol_version = await mc_read_var_int(reader)
+            server_address_length = await mc_read_var_int(reader)
+            if server_address_length[0] > 255:
+                raise MCException("Server address is too big")
+            _ = await reader.read(server_address_length[0])
+            _ = await reader.read(2)
+            next_state = await mc_read_var_int(reader)
 
-        real_packet_length = (
-            id_bytes
-            + protocol_version[1]
-            + server_address_length[1]
-            + server_address_length[0]
-            + 2
-            + next_state[1]
-        )
-
-        if real_packet_length != packet_length:
-            raise MCException(
-                f"Bad packet length ({real_packet_length} vs {packet_length})"
+            real_packet_length = (
+                id_bytes
+                + protocol_version[1]
+                + server_address_length[1]
+                + server_address_length[0]
+                + 2
+                + next_state[1]
             )
 
-        if next_state[0] == 1:
-            data = {
-                "version": {
-                    "name": "Any",
-                    "protocol": protocol_version[0],
-                },
-                "players": {
-                    "max": 0,
-                    "online": 0,
-                    "sample": [],
-                },
-                "description": {
-                    "text": reason_text,
-                },
-                "favicon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAABGdBTUEAALGPC/xhBQAAAAFzUkdCAK7OHOkAAABjUExURQAAAPgxL/MwLfcwLvgwLvcwLvgwLvgxL/gwLvgwL/AvLfcwLu8vLfgxLvgwLusuLOsuK+8vLOwuLPIvLfEvLfMwLvQwLvcwLuwuLPgxL+8vLfcwL+8uLPgwLvgwL/gwL/gxL1kRqKYAAAAgdFJOUwDBT4vBwYn+9vZPwlD2ik9PT1BQUVFQilH2T8JRiMHCyVculgAAAJtJREFUWMPt1skOwjAMBFAXksYu+77T/P9XIijmCNL4wGXmPk9pnUgWYb5m05g1e7w/r6+M0f61vrMDgYkDFxBQB04gUD8hQIAAAQIECBAYYt636IrTg8DRgS26ph2Ca57IOqumKRfuULqslkZ4vy3PKZYW7Z/LcA8KeobkNzGDwMwBjb5G/dcnLPwndugYbsExiiyT6n3FB/UrD1lkOM21nDj+AAAAAElFTkSuQmCC",
-                "enforcesSecureChat": False,
-            }
+            if real_packet_length != packet_length:
+                raise MCException(
+                    f"Bad packet length ({real_packet_length} vs {packet_length})"
+                )
 
-    data_string = json.dumps(data)
-    packet_id_length = mc_var_int_length(0)
-    data_prefix_length = mc_var_int_length(len(data_string))
-    await mc_write_var_int(
-        packet_id_length + data_prefix_length + len(data_string), writer
-    )
-    await mc_write_var_int(0, writer)
-    await mc_write_var_int(len(data_string), writer)
-    writer.write(data_string.encode())
+            if next_state[0] == 1:
+                data = {
+                    "version": {
+                        "name": "Any",
+                        "protocol": protocol_version[0],
+                    },
+                    "players": {
+                        "max": 0,
+                        "online": 0,
+                        "sample": [],
+                    },
+                    "description": {
+                        "text": reason_text,
+                    },
+                    "favicon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAABGdBTUEAALGPC/xhBQAAAAFzUkdCAK7OHOkAAABjUExURQAAAPgxL/MwLfcwLvgwLvcwLvgwLvgxL/gwLvgwL/AvLfcwLu8vLfgxLvgwLusuLOsuK+8vLOwuLPIvLfEvLfMwLvQwLvcwLuwuLPgxL+8vLfcwL+8uLPgwLvgwL/gwL/gxL1kRqKYAAAAgdFJOUwDBT4vBwYn+9vZPwlD2ik9PT1BQUVFQilH2T8JRiMHCyVculgAAAJtJREFUWMPt1skOwjAMBFAXksYu+77T/P9XIijmCNL4wGXmPk9pnUgWYb5m05g1e7w/r6+M0f61vrMDgYkDFxBQB04gUD8hQIAAAQIECBAYYt636IrTg8DRgS26ph2Ca57IOqumKRfuULqslkZ4vy3PKZYW7Z/LcA8KeobkNzGDwMwBjb5G/dcnLPwndugYbsExiiyT6n3FB/UrD1lkOM21nDj+AAAAAElFTkSuQmCC",
+                    "enforcesSecureChat": False,
+                }
+
+        data_string = json.dumps(data)
+        packet_id_length = mc_var_int_length(0)
+        data_prefix_length = mc_var_int_length(len(data_string))
+        await mc_write_var_int(
+            packet_id_length + data_prefix_length + len(data_string), writer
+        )
+        await mc_write_var_int(0, writer)
+        await mc_write_var_int(len(data_string), writer)
+        writer.write(data_string.encode())
+    except Exception as e:
+        print(f"Failed to handle minecraft: {e}")
 
 
 async def minecraft_runner(
@@ -304,13 +324,40 @@ async def binary_runner(
     mc_queue: asyncio.Queue[Optional[str]],
     mc_lock: asyncio.Lock,
 ):
-    await mc_queue.put("Updating Repo")
-    await update_git_repo(repo_dir)
+    try:
+        await mc_queue.put("Updating Repo...")
+        await update_git_repo(repo_dir)
+    except SubprocessError as e:
+        print(f"!WARNING! Failed to update repo: {e}")
 
-    await mc_queue.put("Building Binary")
-    await build_binary(repo_dir)
+    while True:
+        try:
+            await update_rust()
+            break
+        except SubprocessError as e:
+            await mc_queue.put("Failed to update rust!")
+            print(f"!WARNING! Failed to update rust: {e}\nSleeping for 10 minutes...")
+            await asyncio.sleep(10 * 60)
 
-    commit = await get_repo_description(repo_dir)
+    while True:
+        try:
+            await mc_queue.put("Building Binary...")
+            await build_binary(repo_dir)
+            break
+        except SubprocessError as e:
+            await mc_queue.put("Failed to build binary!")
+            print(f"!WARNING! Failed to build binary: {e}\nSleeping for 10 minutes...")
+            await asyncio.sleep(10 * 60)
+
+    while True:
+        try:
+            commit = await get_repo_description(repo_dir)
+            break
+        except SubprocessError as e:
+            await mc_queue.put("Failed to get commit!")
+            print(f"!WARNING! Failed to get commit: {e}\nSleeping for 10 minutes...")
+            await asyncio.sleep(10 * 60)
+
     current_log_dir = os.path.join(log_dir, commit)
     if not os.path.isdir(current_log_dir):
         os.mkdir(current_log_dir)
@@ -355,13 +402,46 @@ async def binary_runner(
         else:
             print("New commit detected; rebuilding and restarting.")
             while not update_queue.empty():
-                await mc_queue.put("Updating Repo")
-                await update_git_repo(repo_dir)
+                try:
+                    await mc_queue.put("Updating Repo...")
+                    await update_git_repo(repo_dir)
+                except SubprocessError as e:
+                    print(f"!WARNING! Failed to update repo: {e}")
 
-                await mc_queue.put("Building Binary")
-                await build_binary(repo_dir)
+            while True:
+                try:
+                    await update_rust()
+                    break
+                except SubprocessError as e:
+                    await mc_queue.put("Failed to update rust!")
+                    print(
+                        f"!WARNING! Failed to update rust: {e}\nSleeping for 10 minutes..."
+                    )
+                    await asyncio.sleep(10 * 60)
 
-            commit = await get_repo_description(repo_dir)
+            while True:
+                try:
+                    await mc_queue.put("Building Binary...")
+                    await build_binary(repo_dir)
+                    break
+                except SubprocessError as e:
+                    await mc_queue.put("Failed to build binary!")
+                    print(
+                        f"!WARNING! Failed to build binary: {e}\nSleeping for 10 minutes..."
+                    )
+                    await asyncio.sleep(10 * 60)
+
+            while True:
+                try:
+                    commit = await get_repo_description(repo_dir)
+                    break
+                except SubprocessError as e:
+                    await mc_queue.put("Failed to get commit!")
+                    print(
+                        f"!WARNING! Failed to get commit: {e}\nSleeping for 10 minutes..."
+                    )
+                    await asyncio.sleep(10 * 60)
+
             current_log_dir = os.path.join(log_dir, commit)
             if not os.path.isdir(current_log_dir):
                 os.mkdir(current_log_dir)
