@@ -136,10 +136,10 @@ async def handle_webhook(queue: asyncio.Queue[str], request: web.Request):
         raw_data = await request.text()
         converted_data = urllib.parse.unquote(raw_data)
         json_data = json.loads(converted_data[len("payload=") :])
-        print(json_data["repository"])
-        print(f'commit detected on {json_data["ref"]}')
-        if json_data["ref"] == "refs/heads/master":
-            await queue.put(json_data["after"])
+        if json_data["repository"]["full_name"] == "kralverde/Pumpkin":
+            print(f'commit detected on {json_data["ref"]}')
+            if json_data["ref"] == "refs/heads/master":
+                await queue.put(json_data["after"])
 
     return web.Response()
 
