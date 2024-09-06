@@ -144,9 +144,18 @@ async def handle_webhook(queue: asyncio.Queue[str], request: web.Request):
     return web.Response()
 
 
+async def handle_index(request: web.Request):
+    return web.Response(body="TEST")
+
+
 async def webhook_runner(host: str, port: int, update_queue: asyncio.Queue[str]):
     app = web.Application()
-    app.add_routes([web.post("/{_}", lambda x: handle_webhook(update_queue, x))])
+    app.add_routes(
+        [
+            web.post("/watchdog", lambda x: handle_webhook(update_queue, x)),
+            web.get("/{_}", handle_index),
+        ]
+    )
     print(f"webhook listening at {host}:{port}")
     await web._run_app(app, host=host, port=port, print=lambda _: None)
 
