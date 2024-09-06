@@ -179,7 +179,7 @@ INDEX_DATA = """<!DOCTYPE html>
 
   <body>
 	  <h1>A Nightly PumpkinMC Server</h1>
-      <p>This server is running <a href=https://github.com/Snowiiii/Pumpkin>Pumpkin MC</a> -- a Rust-written vanilla minecraft server -- straight from the master branch, updated every couple of hours (currently running <a href="https://github.com/Snowiiii/Pumpkin/commit/{{commit}}">{{commit}}: {{name}}</a>). You can also try to trigger a rebuild with <a href=https://pull.git.ci/process/kralverde/Pumpkin>this link</a> if you need to update the server!</p>
+      <p>This server is running <a href=https://github.com/Snowiiii/Pumpkin>Pumpkin MC</a> -- a Rust-written vanilla minecraft server -- straight from the master branch, updated every couple of hours (currently running <a href="https://github.com/Snowiiii/Pumpkin/commit/{{commit}}">{{name}} ({{short_commit}})</a>). You can also try to trigger a rebuild with <a href=https://pull.git.ci/process/kralverde/Pumpkin>this link</a> if you need to update the server!</p>
 	  <p>You can join and test with your Minecraft client at pumpkin.kralverde.dev on port 25565. The goal of this particular server is just to have something public-facing to have lay-users try out and to stress test and see what real-world issues may come up. Feel free to do whatever to the <b>Minecraft</b> server; after all, the best way to find bugs is to open it to the public :p</p>
 	  <p>Logs can be found <a href=/logs>here</a> and are sorted by the commit that was running and the count of each (re)start of the Pumpkin binary. The current instance's logs can be found under the current commit hash directory with the highest number. The current STDOUT log can be found <a href="/logs/{{commit}}/stdout_{{count}}.txt">here</a> and the current STDERR log can be found <a href="/logs/{{commit}}/stderr_{{count}}.txt">here</a></p>
   </body>
@@ -193,7 +193,8 @@ async def handle_index(
     return web.Response(
         body=INDEX_DATA.replace("{{commit}}", str(commit_wrapper[0]))
         .replace("{{count}}", str(commit_wrapper[1]))
-        .replace("{{name}}", str(commit_wrapper[2])),
+        .replace("{{name}}", str(commit_wrapper[2]))
+        .replace("{{short_commit}}", str(commit_wrapper[0])[:8]),
         content_type="text/html",
     )
 
