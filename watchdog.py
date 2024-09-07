@@ -451,6 +451,7 @@ async def binary_runner(
                     await update_git_repo(repo_dir)
                 except SubprocessError as e:
                     print(f"!WARNING! Failed to update repo: {e}")
+                    continue
                 if update_queue.empty():
                     break
                 else:
