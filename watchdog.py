@@ -445,12 +445,16 @@ async def binary_runner(
             await asyncio.sleep(2 * 60)
         else:
             print("New commit detected; rebuilding and restarting.")
-            while not update_queue.empty():
+            while True:
                 try:
                     await mc_queue.put("Updating Repo...")
                     await update_git_repo(repo_dir)
                 except SubprocessError as e:
                     print(f"!WARNING! Failed to update repo: {e}")
+                if update_queue.empty():
+                    break
+                else:
+                    await update_queue.get()
 
             while True:
                 try:
