@@ -183,6 +183,7 @@ INDEX_DATA = """<!DOCTYPE html>
   <body>
     <div style="margin:15px;">
         <h1>A Nightly PumpkinMC Server</h1>
+        {{error}}
         <p>This server is running <a href=https://github.com/Snowiiii/Pumpkin>Pumpkin MC</a> -- a Rust-written vanilla minecraft server -- straight from the master branch, updated every couple of hours (currently running <a href="https://github.com/Snowiiii/Pumpkin/commit/{{commit}}">({{short_commit}}) {{name}}</a>). The server is running in debug mode, so it will be less efficient/slower than any release builds!</p>
         <p>You can join and test with your Minecraft client at <b>pumpkin.kralverde.dev</b> on port <b>25565</b>. The goal of this particular server is just to have something public-facing to have lay-users try out and to stress test and see what real-world issues may come up. Feel free to do whatever to the <b>Minecraft</b> server; after all, the best way to find bugs is to open it to the public :p</p>
         <p>Logs can be found <a href=/logs>here</a> and are sorted by the commit that was running and the count of each (re)start of the Pumpkin binary. The current instance's logs can be found under the current commit hash directory with the highest number. The current STDOUT log can be found <a href="/logs/{{commit}}/stdout_{{count}}.txt">here</a> and the current STDERR log can be found <a href="/logs/{{commit}}/stderr_{{count}}.txt">here</a>.</p>
@@ -199,7 +200,13 @@ async def handle_index(
         body=INDEX_DATA.replace("{{commit}}", str(commit_wrapper[0]))
         .replace("{{count}}", str(commit_wrapper[1]))
         .replace("{{name}}", str(commit_wrapper[2]))
-        .replace("{{short_commit}}", str(commit_wrapper[0])[:8]),
+        .replace("{{short_commit}}", str(commit_wrapper[0])[:8])
+        .replace(
+            "{{error}}",
+            ""
+            if not commit_wrapper[3]
+            else f'<p style="color:red;"><b>{commit_wrapper[3]}</b></p>',
+        ),
         content_type="text/html",
     )
 
@@ -418,9 +425,9 @@ async def binary_runner(
                 try_counter = new_counter + 1
 
     commit_wrapper[0] = commit
-    commit_wrapper[1] = try_counter
     commit_wrapper[2] = commit_name
     while True:
+        commit_wrapper[1] = try_counter
         print(f"attempting to start the binary (try count: {try_counter})")
         stdout_path = os.path.join(current_log_dir, f"stdout_{try_counter}.txt")
         stderr_path = os.path.join(current_log_dir, f"stderr_{try_counter}.txt")
@@ -438,6 +445,7 @@ async def binary_runner(
         )
         print("The binary has started")
 
+        commit_wrapper[3] = ""
         new_commit = await wait_for_process_or_signal(proc, update_queue)
 
         stdout_log.close()
@@ -446,44 +454,41 @@ async def binary_runner(
         mc_lock.release()
         if new_commit is None:
             print("The binary died for an unknown reason! Sleeping for 2 minutes.")
-            await mc_queue.put("Binary failure! (Restarting in 2 minutes)")
-            await asyncio.sleep(2 * 60)
+            commit_wrapper[3] = (
+                "The PumpkinMC binary died for an unknown reason! Check the logs!"
+            )
+            await mc_queue.put("Binary failure! (Restarting in 5 minutes)")
+            await asyncio.sleep(5 * 60)
+            try_counter += 1
         else:
+            try_counter += 1
+
             print("New commit detected; rebuilding and restarting.")
-            while True:
-                try:
-                    await mc_queue.put("Updating Repo...")
-                    await update_git_repo(repo_dir)
-                except SubprocessError as e:
-                    print(f"!WARNING! Failed to update repo: {e}")
-                    continue
-                if update_queue.empty():
-                    break
-                else:
-                    await update_queue.get()
 
-            while True:
-                try:
-                    await update_rust()
-                    break
-                except SubprocessError as e:
-                    await mc_queue.put("Failed to update rust!")
-                    print(
-                        f"!WARNING! Failed to update rust: {e}\nSleeping for 10 minutes..."
-                    )
-                    await asyncio.sleep(10 * 60)
+            try:
+                await mc_queue.put("Updating Repo...")
+                await update_git_repo(repo_dir)
+            except SubprocessError as e:
+                print(f"!WARNING! Failed to update repo: {e}")
+                commit_wrapper[3] = f"Unable to update the local repo to {new_commit}"
+                continue
 
-            while True:
-                try:
-                    await mc_queue.put("Building Binary...")
-                    await build_binary(repo_dir)
-                    break
-                except SubprocessError as e:
-                    await mc_queue.put("Failed to build binary!")
-                    print(
-                        f"!WARNING! Failed to build binary: {e}\nSleeping for 10 minutes..."
-                    )
-                    await asyncio.sleep(10 * 60)
+            try:
+                await update_rust()
+            except SubprocessError as e:
+                await mc_queue.put("Failed to update rust!")
+                print(f"!WARNING! Failed to update rust: {e}")
+                commit_wrapper[3] = f"Unable to update rust for new commit {new_commit}"
+                continue
+
+            try:
+                await mc_queue.put("Building Binary...")
+                await build_binary(repo_dir)
+            except SubprocessError as e:
+                await mc_queue.put("Failed to build binary!")
+                print(f"!WARNING! Failed to build binary: {e}")
+                commit_wrapper[3] = f"Unable to build commit {new_commit}"
+                continue
 
             while True:
                 try:
@@ -491,10 +496,12 @@ async def binary_runner(
                     break
                 except SubprocessError as e:
                     await mc_queue.put("Failed to get commit!")
+                    commit_wrapper[3] = "The PumpkinMC binary failed to start!"
                     print(
                         f"!WARNING! Failed to get commit: {e}\nSleeping for 10 minutes..."
                     )
                     await asyncio.sleep(10 * 60)
+                    continue
 
             print(f"new commit: {commit}")
             current_log_dir = os.path.join(log_dir, commit)
@@ -506,9 +513,6 @@ async def binary_runner(
             commit_wrapper[1] = try_counter
             commit_wrapper[2] = commit_name
             continue
-
-        try_counter += 1
-        commit_wrapper[1] = try_counter
 
 
 async def async_main(
@@ -523,7 +527,7 @@ async def async_main(
     mc_queue = asyncio.Queue()
     mc_lock = asyncio.Lock()
 
-    commit_wrapper = ["0", 0, "default"]
+    commit_wrapper = ["0", 0, "default", ""]
 
     webhook_task = asyncio.create_task(
         webhook_runner(
