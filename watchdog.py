@@ -77,7 +77,7 @@ async def build_binary(repo_dir: str):
     env = os.environ.copy()
     env["RUSTFLAGS"] = "-C target-cpu=native"
     proc = await asyncio.subprocess.create_subprocess_shell(
-        "cargo build --release --config profile.release.debug=true --jobs 1",
+        "cargo build --release --config profile.release.debug=true",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         env=env,
