@@ -73,10 +73,14 @@ async def update_git_repo(repo_dir: str):
 async def build_binary(repo_dir: str):
     print("building binary")
     os.chdir(repo_dir)
+
+    env = os.environ.copy()
+    env["RUST_FLAGS"] = "-C target-cpu=native"
     proc = await asyncio.subprocess.create_subprocess_shell(
-        "cargo build",
+        "cargo build --release --config profile.release.debug=true",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=env,
     )
     exit_code = await proc.wait()
     if exit_code != 0:
@@ -184,7 +188,7 @@ INDEX_DATA = """<!DOCTYPE html>
     <div style="margin:15px;">
         <h1>A Nightly PumpkinMC Server</h1>
         {{error}}
-        <p>This server is running <a href=https://github.com/Snowiiii/Pumpkin>Pumpkin MC</a> -- a Rust-written vanilla minecraft server -- straight from the master branch, updated every couple of hours (currently running <a href="https://github.com/Snowiiii/Pumpkin/commit/{{commit}}">({{short_commit}}) {{name}}</a>). The server is running in debug mode, so it will be less efficient/slower than any release builds!</p>
+        <p>This server is running <a href=https://github.com/Snowiiii/Pumpkin>Pumpkin MC</a> -- a Rust-written vanilla minecraft server -- straight from the master branch, updated when commits are made to the master branch (currently running <a href="https://github.com/Snowiiii/Pumpkin/commit/{{commit}}">({{short_commit}}) {{name}}</a>).</p>
         <p>You can join and test with your Minecraft client at <b>pumpkin.kralverde.dev</b> on port <b>25565</b>. The goal of this particular server is just to have something public-facing to have lay-users try out and to stress test and see what real-world issues may come up. Feel free to do whatever to the <b>Minecraft</b> server; after all, the best way to find bugs is to open it to the public :p</p>
         <p>Logs can be found <a href=/logs>here</a> and are sorted by the commit that was running and the count of each (re)start of the Pumpkin binary. The current instance's logs can be found under the current commit hash directory with the highest number. The current STDOUT log can be found <a href="/logs/{{commit}}/stdout_{{count}}.txt">here</a> and the current STDERR log can be found <a href="/logs/{{commit}}/stderr_{{count}}.txt">here</a>.</p>
     </div>
@@ -415,7 +419,7 @@ async def binary_runner(
     if not os.path.isdir(current_log_dir):
         os.mkdir(current_log_dir)
 
-    executable_path = os.path.join(repo_dir, "./target/debug/pumpkin")
+    executable_path = os.path.join(repo_dir, "./target/release/pumpkin")
 
     try_counter = 0
     for entry in os.scandir(current_log_dir):
