@@ -1,5 +1,5 @@
 import asyncio
-from collections import deque
+from io import IOBase
 import json
 import os
 import re
@@ -8,7 +8,7 @@ import urllib.parse
 
 from aiohttp import web
 
-from typing import IO, Any, List, Optional, Union
+from typing import List, Optional, Union
 
 
 class SubprocessError(Exception):
@@ -113,8 +113,8 @@ async def get_repo_description(repo_dir: str):
 
 async def start_binary(
     binary_path: str,
-    stdout_log: IO[Any],
-    stderr_log: IO[Any],
+    stdout_log: IOBase,
+    stderr_log: IOBase,
 ):
     env = os.environ.copy()
     env["RUST_BACKTRACE"] = "1"
@@ -387,19 +387,11 @@ def find_ips(s):
             yield match.start(), original, scrubbed
 
 
-class IPScrubberIO(IO):
-    def __init__(self, base: IO):
+class IPScrubberIO(IOBase):
+    def __init__(self, base: IOBase):
         self.base = base
         self.last_write = None
         self.last_was_ip = False
-
-    @property
-    def mode(self) -> str:
-        return self.base.mode
-
-    @property
-    def name(self) -> str:
-        return self.base.name
 
     def close(self) -> None:
         self.base.close()
@@ -418,7 +410,7 @@ class IPScrubberIO(IO):
         self.base.flush()
 
     def isatty(self) -> bool:
-        return self.base.isatty()
+        return False
 
     def read(self, n: int = -1):
         return self.base.read(n)
