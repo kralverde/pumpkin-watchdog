@@ -409,7 +409,10 @@ class IPScrubberIO(IO):
         return self.base.closed
 
     def fileno(self) -> int:
-        return self.base.fileno()
+        # Return error instead of underlying so
+        # our code isn't short-circuited
+        # return self.base.fileno()
+        raise OSError()
 
     def flush(self) -> None:
         self.base.flush()
