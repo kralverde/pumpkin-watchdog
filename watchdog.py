@@ -1,14 +1,12 @@
 import asyncio
 import json
-import io
 import os
-import re
 import sys
 import urllib.parse
 
 from aiohttp import web
 
-from typing import IO, List, Optional, Union
+from typing import IO, Any, List, Optional, Union
 
 
 class SubprocessError(Exception):
@@ -113,8 +111,8 @@ async def get_repo_description(repo_dir: str):
 
 async def start_binary(
     binary_path: str,
-    stdout_log: io.IOBase,
-    stderr_log: io.IOBase,
+    stdout_log: IO[Any],
+    stderr_log: IO[Any],
 ):
     env = os.environ.copy()
     env["RUST_BACKTRACE"] = "1"
@@ -374,123 +372,6 @@ async def minecraft_runner(
                         break
 
 
-def find_ips(s):
-    if isinstance(s, str):
-        for match in re.finditer(r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", s):
-            original = match.group(0)
-            scrubbed = re.sub(r"\d", "x", original)
-            yield match.start(), original, scrubbed
-    else:
-        for match in re.finditer(rb"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", s):
-            original = match.group(0)
-            scrubbed = re.sub(rb"\d", b"x", original)
-            yield match.start(), original, scrubbed
-
-
-class IPScrubberIO(io.IOBase):
-    def __init__(self, base: IO):
-        self.base = base
-        self.last_write = None
-        self.last_was_ip = False
-
-    def close(self) -> None:
-        self.base.close()
-
-    @property
-    def closed(self) -> bool:
-        return self.base.closed
-
-    def fileno(self) -> int:
-        # Return error instead of underlying so
-        # our code isn't short-circuited
-        # return self.base.fileno()
-
-        # Bruh
-        # https://bugs.python.org/issue29989
-        # raise OSError()
-        return -1
-
-    def flush(self) -> None:
-        self.base.flush()
-
-    def isatty(self) -> bool:
-        return False
-
-    def read(self, n: int = -1):
-        return self.base.read(n)
-
-    def readable(self) -> bool:
-        return self.base.readable()
-
-    def readline(self, limit: Optional[int] = -1):
-        if limit is None:
-            limit = -1
-        return self.base.readline(limit)
-
-    def readlines(self, hint: int = -1):
-        return self.base.readlines(hint)
-
-    def seek(self, offset: int, whence: int = 0) -> int:
-        return self.base.seek(offset, whence)
-
-    def seekable(self) -> bool:
-        return self.base.seekable()
-
-    def tell(self) -> int:
-        return self.base.tell()
-
-    def truncate(self, size=None) -> int:
-        return self.base.truncate(size)
-
-    def writable(self) -> bool:
-        return self.base.writable()
-
-    def write(self, s) -> int:
-        if self.last_was_ip:
-            self.last_was_ip = False
-            while "0" <= s[0] <= "9":
-                s = "x" + s[1:]
-
-        if self.last_write is not None:
-            for index, original, scrubbed in find_ips(self.last_write + s):
-                self.last_was_ip = True
-                if index < len(self.last_write):
-                    new_end = len(self.last_write) - index
-                    last_scrubbed = scrubbed[:new_end]
-
-                    new_original = original[new_end:]
-                    new_scrubbed = scrubbed[new_end:]
-
-                    self.base.seek(self.base.tell() - (len(self.last_write) - index))
-                    self.base.write(last_scrubbed)
-
-                    s = s.replace(new_original, new_scrubbed)
-                else:
-                    s = s.replace(original, scrubbed)
-
-            if len(s + self.last_write) < 32:
-                self.last_write = self.last_write + s
-            else:
-                self.last_write = s
-        else:
-            for index, original, scrubbed in find_ips(s):
-                self.last_was_ip = True
-                s = s.replace(original, scrubbed)
-            self.last_write = s
-
-        return self.base.write(s)
-
-    def writelines(self, lines) -> None:
-        for line in lines:
-            self.write(line + "\n")
-
-    def __enter__(self):
-        return IPScrubberIO(self.base.__enter__())
-
-    def __exit__(self, type, value, traceback):
-        return self.base.__exit__(type, value, traceback)
-
-
 async def binary_runner(
     repo_dir: str,
     log_dir: str,
@@ -555,11 +436,8 @@ async def binary_runner(
         stdout_path = os.path.join(current_log_dir, f"stdout_{try_counter}.txt")
         stderr_path = os.path.join(current_log_dir, f"stderr_{try_counter}.txt")
 
-        stdout_log = IPScrubberIO(open(stdout_path, "w"))
-        stderr_log = IPScrubberIO(open(stderr_path, "w"))
-
-        stdout_log = io.StringIO()
-        stderr_log = io.StringIO()
+        stdout_log = open(stdout_path, "w")
+        stderr_log = open(stderr_path, "w")
 
         await mc_queue.put(None)
         await mc_lock.acquire()
