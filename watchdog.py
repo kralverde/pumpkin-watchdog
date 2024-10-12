@@ -1,4 +1,5 @@
 import asyncio
+from collections import deque
 import json
 import os
 import re
@@ -373,24 +374,23 @@ async def minecraft_runner(
                         break
 
 
-def scrub_ips(s):
+def find_ips(s):
     if isinstance(s, str):
         for match in re.finditer(r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", s):
             original = match.group(0)
             scrubbed = re.sub(r"\d", "x", original)
-            s = s.replace(original, scrubbed)
-        return s
+            yield match.start(), original, scrubbed
     else:
         for match in re.finditer(rb"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", s):
             original = match.group(0)
             scrubbed = re.sub(rb"\d", b"x", original)
-            s = s.replace(original, scrubbed)
-        return s
+            yield match.start(), original, scrubbed
 
 
 class IPScrubberIO(IO):
     def __init__(self, base: IO):
         self.base = base
+        self.last_write = None
 
     @property
     def mode(self) -> str:
@@ -444,10 +444,34 @@ class IPScrubberIO(IO):
         return self.base.writable()
 
     def write(self, s) -> int:
-        return self.base.write(scrub_ips(s))
+        if self.last_write is not None:
+            for index, original, scrubbed in find_ips(self.last_write + s):
+                if index < len(self.last_write):
+                    new_end = len(original) - (len(self.last_write) - index)
+                    last_scrubbed = scrubbed[:new_end]
+
+                    new_original = original[new_end:]
+                    new_scrubbed = scrubbed[new_end:]
+
+                    self.base.seek(index - len(self.last_write))
+                    self.base.write(last_scrubbed)
+
+                    s = s.replace(new_original, new_scrubbed)
+                else:
+                    s = s.replace(original, scrubbed)
+
+            if len(s + self.last_write) < 32:
+                self.last_write = self.last_write + s
+            else:
+                self.last_write = s
+        else:
+            self.last_write = s
+
+        return self.base.write(s)
 
     def writelines(self, lines) -> None:
-        return self.base.writelines(map(lambda line: scrub_ips(line), lines))
+        for line in lines:
+            self.write(line)
 
     def __enter__(self):
         return IPScrubberIO(self.base.__enter__())
