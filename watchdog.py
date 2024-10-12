@@ -8,7 +8,7 @@ import urllib.parse
 
 from aiohttp import web
 
-from typing import List, Optional, Union
+from typing import IO, List, Optional, Union
 
 
 class SubprocessError(Exception):
@@ -387,8 +387,8 @@ def find_ips(s):
             yield match.start(), original, scrubbed
 
 
-class IPScrubberIO(IOBase):
-    def __init__(self, base: IOBase):
+class IPScrubberIO(io.IOBase):
+    def __init__(self, base: IO):
         self.base = base
         self.last_write = None
         self.last_was_ip = False
@@ -418,7 +418,9 @@ class IPScrubberIO(IOBase):
     def readable(self) -> bool:
         return self.base.readable()
 
-    def readline(self, limit: int = -1):
+    def readline(self, limit: Optional[int] = -1):
+        if limit is None:
+            limit = -1
         return self.base.readline(limit)
 
     def readlines(self, hint: int = -1):
