@@ -404,7 +404,11 @@ class IPScrubberIO(io.IOBase):
         # Return error instead of underlying so
         # our code isn't short-circuited
         # return self.base.fileno()
-        raise OSError()
+
+        # Bruh
+        # https://bugs.python.org/issue29989
+        # raise OSError()
+        return -1
 
     def flush(self) -> None:
         self.base.flush()
