@@ -7,7 +7,7 @@ import urllib.parse
 
 from aiohttp import web
 
-from typing import IO, Any, List, Optional, Union, override
+from typing import IO, Any, List, Optional, Union
 
 
 class SubprocessError(Exception):
@@ -393,85 +393,65 @@ class IPScrubberIO(IO):
         self.base = base
 
     @property
-    @override
     def mode(self) -> str:
         return self.base.mode
 
     @property
-    @override
     def name(self) -> str:
         return self.base.name
 
-    @override
     def close(self) -> None:
         self.base.close()
 
     @property
-    @override
     def closed(self) -> bool:
         return self.base.closed
 
-    @override
     def fileno(self) -> int:
         return self.base.fileno()
 
-    @override
     def flush(self) -> None:
         self.base.flush()
 
-    @override
     def isatty(self) -> bool:
         return self.base.isatty()
 
-    @override
     def read(self, n: int = -1):
         return self.base.read(n)
 
-    @override
     def readable(self) -> bool:
         return self.base.readable()
 
-    @override
     def readline(self, limit: int = -1):
         return self.base.readline(limit)
 
-    @override
     def readlines(self, hint: int = -1):
         return self.base.readlines(hint)
 
-    @override
     def seek(self, offset: int, whence: int = 0) -> int:
         return self.base.seek(offset, whence)
 
-    @override
     def seekable(self) -> bool:
         return self.base.seekable()
 
-    @override
     def tell(self) -> int:
         return self.base.tell()
 
-    @override
     def truncate(self, size=None) -> int:
         return self.base.truncate(size)
 
-    @override
     def writable(self) -> bool:
         return self.base.writable()
 
-    @override
     def write(self, s) -> int:
         return self.base.write(scrub_ips(s))
 
-    @override
     def writelines(self, lines) -> None:
         return self.base.writelines(map(lambda line: scrub_ips(line), lines))
 
-    @override
     def __enter__(self):
         return IPScrubberIO(self.base.__enter__())
 
-    @override
     def __exit__(self, type, value, traceback):
         return self.base.__exit__(type, value, traceback)
 
