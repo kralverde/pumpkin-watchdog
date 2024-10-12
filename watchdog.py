@@ -391,6 +391,7 @@ class IPScrubberIO(IO):
     def __init__(self, base: IO):
         self.base = base
         self.last_write = None
+        self.last_was_ip = False
 
     @property
     def mode(self) -> str:
@@ -444,16 +445,22 @@ class IPScrubberIO(IO):
         return self.base.writable()
 
     def write(self, s) -> int:
+        if self.last_was_ip:
+            self.last_was_ip = False
+            while "0" <= s[0] <= "9":
+                s = "x" + s[1:]
+
         if self.last_write is not None:
             for index, original, scrubbed in find_ips(self.last_write + s):
+                self.last_was_ip = True
                 if index < len(self.last_write):
-                    new_end = len(original) - (len(self.last_write) - index)
+                    new_end = len(self.last_write) - index
                     last_scrubbed = scrubbed[:new_end]
 
                     new_original = original[new_end:]
                     new_scrubbed = scrubbed[new_end:]
 
-                    self.base.seek(index - len(self.last_write))
+                    self.base.seek(self.base.tell() - (len(self.last_write) - index))
                     self.base.write(last_scrubbed)
 
                     s = s.replace(new_original, new_scrubbed)
@@ -465,13 +472,16 @@ class IPScrubberIO(IO):
             else:
                 self.last_write = s
         else:
+            for index, original, scrubbed in find_ips(s):
+                self.last_was_ip = True
+                s = s.replace(original, scrubbed)
             self.last_write = s
 
         return self.base.write(s)
 
     def writelines(self, lines) -> None:
         for line in lines:
-            self.write(line)
+            self.write(line + "\n")
 
     def __enter__(self):
         return IPScrubberIO(self.base.__enter__())
