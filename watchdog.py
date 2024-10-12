@@ -1,12 +1,13 @@
 import asyncio
 import json
 import os
+import re
 import sys
 import urllib.parse
 
 from aiohttp import web
 
-from typing import IO, Any, List, Optional, Union
+from typing import IO, Any, List, Optional, Union, override
 
 
 class SubprocessError(Exception):
@@ -372,6 +373,109 @@ async def minecraft_runner(
                         break
 
 
+def scrub_ips(s):
+    if isinstance(s, str):
+        for match in re.finditer(r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", s):
+            original = match.group(0)
+            scrubbed = re.sub(r"\d", "x", original)
+            s = s.replace(original, scrubbed)
+        return s
+    else:
+        for match in re.finditer(rb"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", s):
+            original = match.group(0)
+            scrubbed = re.sub(rb"\d", b"x", original)
+            s = s.replace(original, scrubbed)
+        return s
+
+
+class IPScrubberIO(IO):
+    def __init__(self, base: IO):
+        self.base = base
+
+    @property
+    @override
+    def mode(self) -> str:
+        return self.base.mode
+
+    @property
+    @override
+    def name(self) -> str:
+        return self.base.name
+
+    @override
+    def close(self) -> None:
+        self.base.close()
+
+    @property
+    @override
+    def closed(self) -> bool:
+        return self.base.closed
+
+    @override
+    def fileno(self) -> int:
+        return self.base.fileno()
+
+    @override
+    def flush(self) -> None:
+        self.base.flush()
+
+    @override
+    def isatty(self) -> bool:
+        return self.base.isatty()
+
+    @override
+    def read(self, n: int = -1):
+        return self.base.read(n)
+
+    @override
+    def readable(self) -> bool:
+        return self.base.readable()
+
+    @override
+    def readline(self, limit: int = -1):
+        return self.base.readline(limit)
+
+    @override
+    def readlines(self, hint: int = -1):
+        return self.base.readlines(hint)
+
+    @override
+    def seek(self, offset: int, whence: int = 0) -> int:
+        return self.base.seek(offset, whence)
+
+    @override
+    def seekable(self) -> bool:
+        return self.base.seekable()
+
+    @override
+    def tell(self) -> int:
+        return self.base.tell()
+
+    @override
+    def truncate(self, size=None) -> int:
+        return self.base.truncate(size)
+
+    @override
+    def writable(self) -> bool:
+        return self.base.writable()
+
+    @override
+    def write(self, s) -> int:
+        return self.base.write(scrub_ips(s))
+
+    @override
+    def writelines(self, lines) -> None:
+        return self.base.writelines(map(lambda line: scrub_ips(line), lines))
+
+    @override
+    def __enter__(self):
+        return IPScrubberIO(self.base.__enter__())
+
+    @override
+    def __exit__(self, type, value, traceback):
+        return self.base.__exit__(type, value, traceback)
+
+
 async def binary_runner(
     repo_dir: str,
     log_dir: str,
@@ -436,8 +540,8 @@ async def binary_runner(
         stdout_path = os.path.join(current_log_dir, f"stdout_{try_counter}.txt")
         stderr_path = os.path.join(current_log_dir, f"stderr_{try_counter}.txt")
 
-        stdout_log = open(stdout_path, "w")
-        stderr_log = open(stderr_path, "w")
+        stdout_log = IPScrubberIO(open(stdout_path, "w"))
+        stderr_log = IPScrubberIO(open(stderr_path, "w"))
 
         await mc_queue.put(None)
         await mc_lock.acquire()
