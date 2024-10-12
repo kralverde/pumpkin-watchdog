@@ -1,6 +1,6 @@
 import asyncio
-from io import IOBase
 import json
+import io
 import os
 import re
 import sys
@@ -113,8 +113,8 @@ async def get_repo_description(repo_dir: str):
 
 async def start_binary(
     binary_path: str,
-    stdout_log: IOBase,
-    stderr_log: IOBase,
+    stdout_log: io.IOBase,
+    stderr_log: io.IOBase,
 ):
     env = os.environ.copy()
     env["RUST_BACKTRACE"] = "1"
@@ -551,6 +551,9 @@ async def binary_runner(
 
         stdout_log = IPScrubberIO(open(stdout_path, "w"))
         stderr_log = IPScrubberIO(open(stderr_path, "w"))
+
+        stdout_log = io.StringIO()
+        stderr_log = io.StringIO()
 
         await mc_queue.put(None)
         await mc_lock.acquire()
