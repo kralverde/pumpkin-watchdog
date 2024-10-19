@@ -343,11 +343,12 @@ async def handle_mc(
 
 
 async def deadlock_checker(
-    port: int,
-    commit_wrapper: List[Union[str, int]],
+    port: int, commit_wrapper: List[Union[str, int]], can_access_mc: List[bool]
 ):
     while True:
         await asyncio.sleep(10 * 60)
+        if not can_access_mc[0]:
+            continue
         reader, writer = await asyncio.open_connection("127.0.0.1", port)
 
         packet_id_length = mc_var_int_length(0)
@@ -375,15 +376,19 @@ async def minecraft_runner(
     port: int,
     mc_queue: asyncio.Queue[Optional[str]],
     mc_lock: asyncio.Lock,
+    can_access_mc: List[bool],
 ):
     message = ["Booting up"]
 
     while True:
         await mc_lock.acquire()
+
         print("starting minecraft notifier")
         server = await asyncio.start_server(
             lambda x, y: handle_mc(message, x, y), host, port
         )
+        can_access_mc[0] = True
+
         addrs = ", ".join(str(sock.getsockname()) for sock in server.sockets)
         print(f"Serving minecraft notifier on {addrs}")
         async with server:
@@ -394,6 +399,7 @@ async def minecraft_runner(
                 new_message = await mc_queue.get()
                 if new_message is None:
                     if not restart_server:
+                        can_access_mc[0] = False
                         print("stopping minecraft notifier")
                         server.close()
                         await server.wait_closed()
@@ -414,6 +420,7 @@ async def binary_runner(
     update_queue: asyncio.Queue[str],
     mc_queue: asyncio.Queue[Optional[str]],
     mc_lock: asyncio.Lock,
+    can_access_mc: List[bool],
 ):
     try:
         await mc_queue.put("Updating Repo...")
@@ -484,12 +491,14 @@ async def binary_runner(
         )
         print("The binary has started")
 
+        can_access_mc[0] = True
         commit_wrapper[3] = ""
         new_commit = await wait_for_process_or_signal(proc, update_queue)
 
         stdout_log.close()
         stderr_log.close()
 
+        can_access_mc[0] = False
         mc_lock.release()
         if new_commit is None:
             print("The binary died for an unknown reason! Sleeping for 2 minutes.")
@@ -567,6 +576,7 @@ async def async_main(
     mc_lock = asyncio.Lock()
 
     commit_wrapper = ["0", 0, "default", ""]
+    can_access_mc = [False]
 
     webhook_task = asyncio.create_task(
         webhook_runner(
@@ -584,6 +594,7 @@ async def async_main(
             update_queue,
             mc_queue,
             mc_lock,
+            can_access_mc,
         )
     )
     mc_task = asyncio.create_task(
@@ -592,9 +603,12 @@ async def async_main(
             mc_port,
             mc_queue,
             mc_lock,
+            can_access_mc,
         )
     )
-    deadlock_task = asyncio.create_task(deadlock_checker(mc_port, commit_wrapper))
+    deadlock_task = asyncio.create_task(
+        deadlock_checker(mc_port, commit_wrapper, can_access_mc)
+    )
 
     completed, pending = await asyncio.wait(
         [webhook_task, binary_task, mc_task, deadlock_task],
