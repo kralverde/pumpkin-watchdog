@@ -142,7 +142,13 @@ async def wait_for_process_or_signal(
         return None
     else:
         proc.terminate()
-        return_code = await proc_task
+        try:
+            return_code = await asyncio.wait_for(proc_task, 30)
+        except asyncio.TimeoutError:
+            print("failed to terminate task, killing")
+            proc.kill()
+            return_code = await proc_task
+
         print(f"binary was terminated with code {return_code}")
 
         new_commit = kill_task.result()
