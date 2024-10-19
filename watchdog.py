@@ -348,7 +348,7 @@ async def deadlock_checker(
     port: int, commit_wrapper: List[Union[str, int]], can_access_mc: List[bool]
 ):
     while True:
-        await asyncio.sleep(60)
+        await asyncio.sleep(60 * 10)
         if not can_access_mc[0]:
             continue
         reader, writer = await asyncio.open_connection("127.0.0.1", port)
@@ -359,6 +359,8 @@ async def deadlock_checker(
 
         try:
             await asyncio.wait_for(fut, 10)
+            if commit_wrapper[3] == "Deadlock detected!":
+                commit_wrapper[3] = ""
         except asyncio.TimeoutError:
             if can_access_mc[0]:
                 commit_wrapper[3] = "Deadlock detected!"
