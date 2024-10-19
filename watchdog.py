@@ -353,30 +353,9 @@ async def deadlock_checker(
             continue
         reader, writer = await asyncio.open_connection("127.0.0.1", port)
 
-        packet_id = 0
-        protocol = 0
-        server_address = "localhost"
-        next_state = 1
-        mc_write_var_int(
-            mc_var_int_length(packet_id)
-            + mc_var_int_length(protocol)
-            + mc_var_int_length(len(server_address))
-            + len(server_address)
-            + 2
-            + mc_var_int_length(next_state),
-            writer,
-        )
-        mc_write_var_int(packet_id, writer)
-        mc_write_var_int(protocol, writer)
-        mc_write_var_int(len(server_address), writer)
-        writer.write(server_address.encode())
-        writer.write(port.to_bytes(2, "little"))
-        mc_write_var_int(next_state, writer)
-
-        writer.write(b"\x01\x00")
+        writer.write(b"\x06\x00\x00\x00\x00\x00\x01\x01\x00")
         await writer.drain()
-
-        fut = reader.read()
+        fut = reader.read(4096)
 
         try:
             await asyncio.wait_for(fut, 10)
