@@ -351,21 +351,35 @@ async def deadlock_checker(
             continue
         reader, writer = await asyncio.open_connection("127.0.0.1", port)
 
-        packet_id_length = mc_var_int_length(0)
-        packet = b"\x00\x00\x00\x00\x01"
-        mc_write_var_int(packet_id_length + len(packet), writer)
-        mc_write_var_int(0, writer)
-        writer.write(packet)
-
+        packet_id = 0
+        protocol = 0
+        server_address = "localhost"
+        next_state = 1
+        mc_write_var_int(
+            mc_var_int_length(packet_id)
+            + mc_var_int_length(protocol)
+            + mc_var_int_length(len(server_address))
+            + len(server_address)
+            + 2
+            + mc_var_int_length(next_state),
+            writer,
+        )
+        mc_write_var_int(packet_id, writer)
+        mc_write_var_int(protocol, writer)
+        mc_write_var_int(len(server_address), writer)
+        writer.write(server_address.encode())
+        writer.write(port.to_bytes(2, "little"))
+        mc_write_var_int(next_state, writer)
         await writer.drain()
 
         fut = reader.read()
 
         try:
-            await asyncio.wait_for(fut, 1)
+            await asyncio.wait_for(fut, 10)
         except asyncio.TimeoutError:
-            commit_wrapper[3] = "Deadlock detected!"
-            print("Deadlock detected!")
+            if can_access_mc[0]:
+                commit_wrapper[3] = "Deadlock detected!"
+                print("Deadlock detected!")
 
         writer.close()
         await writer.wait_closed()
@@ -376,7 +390,6 @@ async def minecraft_runner(
     port: int,
     mc_queue: asyncio.Queue[Optional[str]],
     mc_lock: asyncio.Lock,
-    can_access_mc: List[bool],
 ):
     message = ["Booting up"]
 
@@ -387,7 +400,6 @@ async def minecraft_runner(
         server = await asyncio.start_server(
             lambda x, y: handle_mc(message, x, y), host, port
         )
-        can_access_mc[0] = True
 
         addrs = ", ".join(str(sock.getsockname()) for sock in server.sockets)
         print(f"Serving minecraft notifier on {addrs}")
@@ -399,7 +411,6 @@ async def minecraft_runner(
                 new_message = await mc_queue.get()
                 if new_message is None:
                     if not restart_server:
-                        can_access_mc[0] = False
                         print("stopping minecraft notifier")
                         server.close()
                         await server.wait_closed()
@@ -603,7 +614,6 @@ async def async_main(
             mc_port,
             mc_queue,
             mc_lock,
-            can_access_mc,
         )
     )
     deadlock_task = asyncio.create_task(
