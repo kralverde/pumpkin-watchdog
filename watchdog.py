@@ -346,7 +346,7 @@ async def deadlock_checker(
     port: int, commit_wrapper: List[Union[str, int]], can_access_mc: List[bool]
 ):
     while True:
-        await asyncio.sleep(10 * 60)
+        await asyncio.sleep(60)
         if not can_access_mc[0]:
             continue
         reader, writer = await asyncio.open_connection("127.0.0.1", port)
