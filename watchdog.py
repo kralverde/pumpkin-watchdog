@@ -335,6 +335,28 @@ async def handle_mc(
         print(f"Failed to handle minecraft: {e}")
 
 
+async def deadlock_checker(
+    port: int,
+    commit_wrapper: List[Union[str, int]],
+):
+    while True:
+        await asyncio.sleep(10 * 60)
+        reader, writer = await asyncio.open_connection("127.0.0.1", port)
+        writer.write(b"\x01\x00")
+        await writer.drain()
+
+        fut = reader.read()
+
+        try:
+            await asyncio.wait_for(fut, 1)
+        except asyncio.TimeoutError:
+            commit_wrapper[3] = "Deadlock detected!"
+            print("Deadlock detected!")
+
+        writer.close()
+        await writer.wait_closed()
+
+
 async def minecraft_runner(
     host: str,
     port: int,
@@ -559,9 +581,11 @@ async def async_main(
             mc_lock,
         )
     )
+    deadlock_task = asyncio.create_task(deadlock_checker(mc_port, commit_wrapper))
 
     completed, pending = await asyncio.wait(
-        [webhook_task, binary_task, mc_task], return_when=asyncio.FIRST_EXCEPTION
+        [webhook_task, binary_task, mc_task, deadlock_task],
+        return_when=asyncio.FIRST_EXCEPTION,
     )
 
     for complete in completed:
