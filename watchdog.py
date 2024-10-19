@@ -268,7 +268,7 @@ def mc_var_int_length(num: int):
     return length
 
 
-async def mc_write_var_int(num: int, writer: asyncio.StreamWriter):
+def mc_write_var_int(num: int, writer: asyncio.StreamWriter):
     while True:
         if (num & ~0x7F) == 0:
             writer.write(bytes([num]))
@@ -331,12 +331,13 @@ async def handle_mc(
         data_string = json.dumps(data)
         packet_id_length = mc_var_int_length(0)
         data_prefix_length = mc_var_int_length(len(data_string))
-        await mc_write_var_int(
+        mc_write_var_int(
             packet_id_length + data_prefix_length + len(data_string), writer
         )
-        await mc_write_var_int(0, writer)
-        await mc_write_var_int(len(data_string), writer)
+        mc_write_var_int(0, writer)
+        mc_write_var_int(len(data_string), writer)
         writer.write(data_string.encode())
+        await writer.drain()
     except Exception as e:
         print(f"Failed to handle minecraft: {e}")
 
@@ -348,7 +349,13 @@ async def deadlock_checker(
     while True:
         await asyncio.sleep(10 * 60)
         reader, writer = await asyncio.open_connection("127.0.0.1", port)
-        writer.write(b"\x01\x00")
+
+        packet_id_length = mc_var_int_length(0)
+        packet = b"\x00\x00\x00\x00\x01"
+        mc_write_var_int(packet_id_length + len(packet), writer)
+        mc_write_var_int(0, writer)
+        writer.write(packet)
+
         await writer.drain()
 
         fut = reader.read()
