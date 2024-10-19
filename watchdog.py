@@ -311,6 +311,8 @@ async def handle_mc(
                 )
 
             if next_state[0] == 1:
+                await reader.read(2)
+
                 data = {
                     "version": {
                         "name": "Any",
@@ -370,6 +372,8 @@ async def deadlock_checker(
         writer.write(server_address.encode())
         writer.write(port.to_bytes(2, "little"))
         mc_write_var_int(next_state, writer)
+
+        writer.write(b"\x01\x00")
         await writer.drain()
 
         fut = reader.read()
