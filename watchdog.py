@@ -96,13 +96,16 @@ async def patch_source_code(repo_dir: str):
         if ext == ".path":
             with open(dir_entry.path, "r") as f:
                 rel_path_to_patch = f.read()
-            abs_path_to_patch = os.path.join(repo_dir, rel_path_to_patch)
+
+            abs_path_to_patch = os.path.abspath(
+                os.path.join(repo_dir, rel_path_to_patch)
+            )
             if not os.path.exists(abs_path_to_patch):
                 print(
                     f"Skipping {dir_entry.name}: source file {abs_path_to_patch} does not exist"
                 )
                 continue
-            patch_file = os.path.join(patch_dir, f"{name}.patch")
+            patch_file = os.path.abspath(os.path.join(patch_dir, f"{name}.patch"))
             if not os.path.exists(patch_file):
                 print(
                     f"Skipping {dir_entry.name}: patch file {patch_file} does not exist"
