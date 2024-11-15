@@ -1,13 +1,13 @@
---- original.txt	2024-11-14 19:58:50.433386041 -0500
-+++ new.txt	2024-11-14 20:00:20.621060200 -0500
-@@ -23,17 +23,8 @@
+--- original.txt	2024-11-14 20:31:32.481326678 -0500
++++ new.txt	2024-11-14 20:32:32.181142051 -0500
+@@ -23,17 +23,10 @@
          _args: &ConsumedArgs<'a>,
      ) -> Result<(), CommandError> {
          sender
 -            .send_message(TextComponent::text("Stopping Server").color_named(NamedColor::Red))
-+            .send_message(TextComponent::text("Stopping the server has been patched out of the public server... Sorry!").color_named(NamedColor::Red))
++            .send_message(TextComponent::text("This has been patched out of the public server... Sorry!").color_named(NamedColor::Red))
              .await;
--
+ 
 -        // TODO: Gracefully stop
 -
 -        let kick_message = TextComponent::text("Server stopped");
@@ -16,6 +16,7 @@
 -        }
 -
 -        std::process::exit(0)
++        Ok(())
      }
  }
  
