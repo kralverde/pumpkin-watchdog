@@ -114,7 +114,7 @@ async def patch_source_code(repo_dir: str):
                 continue
 
             proc = await asyncio.subprocess.create_subprocess_shell(
-                f"patch {abs_path_to_patch} {patch_file}",
+                f"patch --no-backup-if-mismatch {abs_path_to_patch} {patch_file}",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
