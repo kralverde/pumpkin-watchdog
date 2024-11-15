@@ -57,6 +57,19 @@ async def update_rust():
 async def update_git_repo(repo_dir: str):
     print("updating repo")
     os.chdir(repo_dir)
+
+    proc = await asyncio.subprocess.create_subprocess_shell(
+        "git reset --hard",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    exit_code = await proc.wait()
+    if exit_code != 0:
+        raise SubprocessError(
+            await proc.stdout.read() if proc.stdout else b"",
+            await proc.stderr.read() if proc.stderr else b"",
+        )
+
     proc = await asyncio.subprocess.create_subprocess_shell(
         "git pull origin master",
         stdout=asyncio.subprocess.PIPE,
@@ -70,7 +83,48 @@ async def update_git_repo(repo_dir: str):
         )
 
 
+async def patch_source_code(repo_dir: str):
+    print("patching code")
+    os.chdir(repo_dir)
+
+    patch_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "patches")
+    assert os.path.exists(patch_dir)
+    assert os.path.isdir(patch_dir)
+
+    for dir_entry in os.scandir(patch_dir):
+        name, ext = os.path.splitext(dir_entry.name)
+        if ext == ".path":
+            with open(dir_entry.path, "r") as f:
+                rel_path_to_patch = f.read()
+            abs_path_to_patch = os.path.join(repo_dir, rel_path_to_patch)
+            if not os.path.exists(abs_path_to_patch):
+                print(f"Skipping {dir_entry.name}: source file does not exist")
+                continue
+            patch_file = os.path.join(patch_dir, f"{name}.patch")
+            if not os.path.exists(abs_path_to_patch):
+                print(f"Skipping {dir_entry.name}: patch file does not exist")
+                continue
+
+            proc = await asyncio.subprocess.create_subprocess_shell(
+                f"patch {abs_path_to_patch} {patch_file}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            exit_code = await proc.wait()
+            if exit_code == 0:
+                print(f"Succeeded patching {dir_entry.name}")
+            else:
+                error = (
+                    proc.stderr.read()
+                    if proc.stderr
+                    else (proc.stdout.read() if proc.stdout else "(No Error)")
+                )
+                print(f"Failed patching {dir_entry.name}: {error}")
+
+
 async def build_binary(repo_dir: str):
+    await patch_source_code(repo_dir)
+
     print("building binary")
     os.chdir(repo_dir)
 
@@ -197,6 +251,8 @@ INDEX_DATA = """<!DOCTYPE html>
         <p>This server is running <a href=https://github.com/Snowiiii/Pumpkin>Pumpkin MC</a> -- a Rust-written vanilla minecraft server -- straight from the master branch, updated when commits are made to the master branch (currently running <a href="https://github.com/Snowiiii/Pumpkin/commit/{{commit}}">({{short_commit}}) {{name}}</a>).</p>
         <p>You can join and test with your Minecraft client at <b>pumpkin.kralverde.dev</b> on port <b>25565</b>. The goal of this particular server is just to have something public-facing to have lay-users try out and to stress test and see what real-world issues may come up. Feel free to do whatever to the <b>Minecraft</b> server; after all, the best way to find bugs is to open it to the public :p</p>
         <p>Logs can be found <a href=/logs>here</a> and are sorted by the commit that was running and the count of each (re)start of the Pumpkin binary. The current instance's logs can be found under the current commit hash directory with the highest number. The current STDOUT log can be found <a href="/logs/{{commit}}/stdout_{{count}}.txt">here</a> and the current STDERR log can be found <a href="/logs/{{commit}}/stderr_{{count}}.txt">here</a>.</p>
+        <br>
+        <p>Comments about this website? @kralverde can be found at this project's <a href="https://discord.gg/wT8XjrjKkf">discord</a>.</p>
     </div>
   </body>
 </html>"""
