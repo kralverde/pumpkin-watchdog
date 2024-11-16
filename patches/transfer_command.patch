@@ -1,0 +1,26 @@
+--- old.txt	2024-11-16 09:05:00.435295136 -0500
++++ new.txt	2024-11-16 09:07:42.961544530 -0500
+@@ -102,15 +102,14 @@
+             return Err(InvalidConsumption(Some(ARG_PLAYERS.into())));
+         };
+ 
+-        for p in players {
+-            p.client
+-                .send_packet(&CTransfer::new(hostname, &VarInt(port)))
+-                .await;
+-            log::info!(
+-                "[{sender}: Transferring {} to {hostname}:{port}]",
+-                p.gameprofile.name
+-            );
+-        }
++        
++        sender
++            .send_message(
++                TextComponent::text("Transfering other players has been patched out of the public server!")
++                    .color(Color::Named(NamedColor::Red)),
++            )
++            .await;
++
+ 
+         Ok(())
+     }
