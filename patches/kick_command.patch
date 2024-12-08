@@ -1,0 +1,31 @@
+--- cmd_kick.rs	2024-12-07 23:03:19.961650071 -0500
++++ cmd_kick_patch.txt	2024-12-07 23:08:45.236916409 -0500
+@@ -25,25 +25,9 @@
+         _server: &crate::server::Server,
+         args: &ConsumedArgs<'a>,
+     ) -> Result<(), CommandError> {
+-        let Some(Arg::Players(targets)) = args.get(&ARG_TARGET) else {
+-            return Err(InvalidConsumption(Some(ARG_TARGET.into())));
+-        };
+-
+-        let target_count = targets.len();
+-
+-        for target in targets {
+-            target
+-                .kick(TextComponent::text("Kicked by an operator"))
+-                .await;
+-        }
+-
+-        let msg = if target_count == 1 {
+-            TextComponent::text("Player has been kicked.")
+-        } else {
+-            TextComponent::text_string(format!("{target_count} players have been kicked."))
+-        };
+-
+-        sender.send_message(msg.color_named(NamedColor::Blue)).await;
++        sender
++            .send_message(TextComponent::text("This has been patched out of the public server... Sorry!").color_named(NamedColor::Red))
++            .await;
+ 
+         Ok(())
+     }
