@@ -130,6 +130,23 @@ async def patch_source_code(repo_dir: str):
                 print(f"Failed patching {dir_entry.name}: {error}")
 
 
+async def clean_binary(repo_dir: str):
+    print("cleaning build dir")
+    os.chdir(repo_dir)
+
+    proc = await asyncio.subprocess.create_subprocess_shell(
+        "cargo clean",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    exit_code = await proc.wait()
+    if exit_code != 0:
+        raise SubprocessError(
+            await proc.stdout.read() if proc.stdout else b"",
+            await proc.stderr.read() if proc.stderr else b"",
+        )
+
+
 async def build_binary(repo_dir: str):
     await patch_source_code(repo_dir)
 
@@ -532,7 +549,10 @@ async def binary_runner(
 
     commit_wrapper[0] = commit
     commit_wrapper[2] = commit_name
+
+    total_counter = 0
     while True:
+        total_counter += 1
         commit_wrapper[1] = try_counter
         print(f"attempting to start the binary (try count: {try_counter})")
         stdout_path = os.path.join(current_log_dir, f"stdout_{try_counter}.txt")
@@ -588,6 +608,12 @@ async def binary_runner(
                 print(f"!WARNING! Failed to update rust: {e}")
                 commit_wrapper[3] = f"Unable to update rust for new commit {new_commit}"
                 continue
+
+            if total_counter % 50 == 0:
+                try:
+                    await clean_binary(repo_dir)
+                except SubprocessError as e:
+                    print(f"!WARNING! Failed to clean build dir: {e}")
 
             try:
                 await mc_queue.put("Building Binary...")
