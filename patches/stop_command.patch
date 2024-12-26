@@ -1,5 +1,5 @@
---- original.txt	2024-11-14 20:31:32.481326678 -0500
-+++ new.txt	2024-11-14 20:32:32.181142051 -0500
+--- cmd_stop.rs	2024-12-26 08:44:12.300689682 -0500
++++ new.txt	2024-12-26 08:45:23.539485594 -0500
 @@ -23,17 +23,10 @@
          _args: &ConsumedArgs<'a>,
      ) -> Result<(), CommandError> {
@@ -14,7 +14,7 @@
 -        for player in server.get_all_players().await {
 -            player.kick(kick_message.clone()).await;
 -        }
--
+-        server.save().await;
 -        std::process::exit(0)
 +        Ok(())
      }

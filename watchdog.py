@@ -123,9 +123,9 @@ async def patch_source_code(repo_dir: str):
                 print(f"Succeeded patching {dir_entry.name}")
             else:
                 error = (
-                    proc.stderr.read()
+                    await proc.stderr.read()
                     if proc.stderr
-                    else (proc.stdout.read() if proc.stdout else "(No Error)")
+                    else (await proc.stdout.read() if proc.stdout else "(No Error)")
                 )
                 print(f"Failed patching {dir_entry.name}: {error}")
 
