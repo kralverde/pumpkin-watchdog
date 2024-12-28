@@ -1,0 +1,10 @@
+--- features.toml	2024-12-26 13:12:38.366225746 +0100
++++ features_patch.toml	2024-12-28 19:02:24.265505230 +0100
+@@ -41,6 +41,7 @@
+ [commands]
+ use_console = true
+ log_console = true
++default_op_level = 3
+ 
+ [rcon]
+ enabled = false
