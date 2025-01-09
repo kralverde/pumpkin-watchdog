@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import signal
 import sys
 import urllib.parse
 
@@ -220,9 +221,9 @@ async def wait_for_process_or_signal(
         print(f"binary returned code {return_code}")
         return None
     else:
-        proc.terminate()
+        proc.send_signal(signal.SIGINT)
         try:
-            return_code = await asyncio.wait_for(proc_task, 30)
+            return_code = await asyncio.wait_for(proc_task, 120)
         except asyncio.TimeoutError:
             print("failed to terminate task, killing")
             proc.kill()
