@@ -3,6 +3,7 @@ import json
 import os
 import signal
 import sys
+import traceback
 import urllib.parse
 
 from aiohttp import web
@@ -423,6 +424,7 @@ async def handle_mc(
         writer.write(data_string.encode())
         await writer.drain()
     except Exception as e:
+        print(traceback.format_exc())
         print(f"Failed to handle minecraft: {e}")
 
 
