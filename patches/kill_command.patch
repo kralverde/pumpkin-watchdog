@@ -1,6 +1,6 @@
---- cmd_kill.rs	2024-12-07 23:03:19.961650071 -0500
-+++ cmd_kill_patch.txt	2024-12-07 23:12:42.827536121 -0500
-@@ -28,20 +28,9 @@
+--- cmd_kill.rs	2025-01-08 14:17:43.205213481 -1000
++++ cmd_kill.new	2025-01-08 14:26:12.668335160 -1000
+@@ -28,19 +28,8 @@
              return Err(InvalidConsumption(Some(ARG_TARGET.into())));
          };
  
@@ -13,14 +13,12 @@
 -        let msg = if target_count == 1 {
 -            TextComponent::text("Entity has been killed.")
 -        } else {
--            TextComponent::text_string(format!("{target_count} entities have been killed."))
+-            TextComponent::text(format!("{target_count} entities have been killed."))
 -        };
 -
 -        sender.send_message(msg.color_named(NamedColor::Blue)).await;
--
-+        sender
-+            .send_message(TextComponent::text("This has been patched out of the public server... Sorry!").color_named(NamedColor::Red))
-+            .await;
++        let msg = TextComponent::text("This command is temporarially disabled on the public server... Sorry!");
++        sender.send_message(msg.color_named(NamedColor::Red)).await;
+ 
          Ok(())
      }
- }
