@@ -243,7 +243,7 @@ async def handle_webhook(queue: asyncio.Queue[str], request: web.Request):
     if request.headers.get("X-GitHub-Event") == "push":
         raw_data = await request.text()
         converted_data = urllib.parse.unquote(raw_data)
-        json_data = json.loads(converted_data[len("payload=") :])
+        json_data = json.loads(converted_data)
         if json_data["repository"]["full_name"] in (
             "kralverde/Pumpkin",
             "Snowiiii/Pumpkin",
