@@ -1,0 +1,27 @@
+--- fill.rs	2025-02-01 16:39:27.374403073 +0100
++++ fill.new	2025-02-01 16:39:21.453888558 +0100
+@@ -44,6 +44,7 @@
+         _server: &crate::server::Server,
+         args: &ConsumedArgs<'a>,
+     ) -> Result<(), CommandError> {
++        /*
+         let block = BlockArgumentConsumer::find_arg(args, ARG_BLOCK)?;
+         let block_state_id = block.default_state_id;
+         let from = BlockPosArgumentConsumer::find_arg(args, ARG_FROM)?;
+@@ -145,12 +146,12 @@
+                 }
+             }
+         };
++        */
+ 
++        let msg =
++            TextComponent::text("This command has been disabled on the public server... Sorry!");
+         sender
+-            .send_message(TextComponent::translate(
+-                "commands.fill.success",
+-                [TextComponent::text(placed_blocks.to_string())].into(),
+-            ))
++            .send_message(msg.color_named(pumpkin_util::text::color::NamedColor::Red))
+             .await;
+ 
+         Ok(())
