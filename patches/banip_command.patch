@@ -14,7 +14,7 @@
      }
 +*/
 +    let msg = TextComponent::text("This command has been disabled on the public server... Sorry!");
-+    sender.send_message(msg.color_named(NamedColor::Red)).await;
++    sender.send_message(msg.color_named(pumpkin_util::text::color::NamedColor::Red)).await;
  }
  
  pub fn init_command_tree() -> CommandTree {
