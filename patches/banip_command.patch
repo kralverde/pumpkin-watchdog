@@ -1,0 +1,20 @@
+--- banip.rs	2025-01-31 13:00:14.583630079 +0100
++++ banip.new	2025-02-01 17:04:53.345874683 +0100
+@@ -79,6 +79,7 @@
+ }
+ 
+ async fn ban_ip(sender: &CommandSender<'_>, server: &Server, target: &str, reason: Option<String>) {
++/*
+     let reason = reason.unwrap_or_else(|| "Banned by an operator.".to_string());
+ 
+     let Some(target_ip) = parse_ip(target, server).await else {
+@@ -148,6 +149,9 @@
+             ))
+             .await;
+     }
++*/
++    let msg = TextComponent::text("This command has been disabled on the public server... Sorry!");
++    sender.send_message(msg.color_named(NamedColor::Red)).await;
+ }
+ 
+ pub fn init_command_tree() -> CommandTree {
