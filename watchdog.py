@@ -85,53 +85,6 @@ async def update_git_repo(repo_dir: str):
         )
 
 
-async def patch_source_code(repo_dir: str):
-    print("patching code")
-    os.chdir(repo_dir)
-
-    patch_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "patches")
-    assert os.path.exists(patch_dir)
-    assert os.path.isdir(patch_dir)
-
-    for dir_entry in os.scandir(patch_dir):
-        name, ext = os.path.splitext(dir_entry.name)
-        if ext == ".path":
-            with open(dir_entry.path, "r") as f:
-                rel_path_to_patch = f.read().strip()
-
-            abs_path_to_patch = os.path.abspath(
-                os.path.join(repo_dir, rel_path_to_patch)
-            )
-            if not os.path.exists(abs_path_to_patch):
-                print(
-                    f"Skipping {dir_entry.name}: source file {abs_path_to_patch} does not exist"
-                )
-                continue
-
-            patch_file = os.path.abspath(os.path.join(patch_dir, f"{name}.patch"))
-            if not os.path.exists(patch_file):
-                print(
-                    f"Skipping {dir_entry.name}: patch file {patch_file} does not exist"
-                )
-                continue
-
-            proc = await asyncio.subprocess.create_subprocess_shell(
-                f"patch --no-backup-if-mismatch {abs_path_to_patch} {patch_file}",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            exit_code = await proc.wait()
-            if exit_code == 0:
-                print(f"Succeeded patching {dir_entry.name}")
-            else:
-                error = (
-                    await proc.stderr.read()
-                    if proc.stderr
-                    else (await proc.stdout.read() if proc.stdout else "(No Error)")
-                )
-                print(f"Failed patching {dir_entry.name}: {error}")
-
-
 async def clean_binary(repo_dir: str):
     print("cleaning build dir")
     os.chdir(repo_dir)
@@ -150,8 +103,6 @@ async def clean_binary(repo_dir: str):
 
 
 async def build_binary(repo_dir: str):
-    await patch_source_code(repo_dir)
-
     print("building binary")
     os.chdir(repo_dir)
 
