@@ -177,7 +177,7 @@ async def wait_for_process_or_signal(
         proc.send_signal(signal.SIGINT)
         try:
             return_code = await asyncio.wait_for(proc_task, 120)
-        except asyncio.TimeoutError:
+        except (asyncio.TimeoutError, TimeoutError):
             print("failed to terminate task, killing")
             proc.kill()
             return_code = await proc_task
