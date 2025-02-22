@@ -180,7 +180,11 @@ async def wait_for_process_or_signal(
         except (asyncio.TimeoutError, TimeoutError):
             print("failed to terminate task, killing")
             proc.kill()
-            return_code = await proc_task
+            try:
+                return_code = await proc_task
+            except asyncio.CancelledError:
+                print("server processess cancelled")
+                return_code = None
 
         print(f"binary was terminated with code {return_code}")
 
