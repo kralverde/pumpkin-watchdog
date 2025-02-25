@@ -3,6 +3,7 @@ import json
 import os
 import signal
 import sys
+import time
 import traceback
 import urllib.parse
 
@@ -238,16 +239,64 @@ INDEX_DATA = """<!DOCTYPE html>
         <p>You can join and test with your Minecraft client at <b>pumpkin.kralverde.dev</b> on port <b>25565</b>. The goal of this particular server is just to have something public-facing to have lay-users try out and to stress test and see what real-world issues may come up. Feel free to do whatever to the <b>Minecraft</b> server; after all, the best way to find bugs is to open it to the public :p</p>
         <p>Logs can be found <a href=/logs>here</a> and are sorted by the commit that was running and the count of each (re)start of the Pumpkin binary. The current instance's logs can be found under the current commit hash directory with the highest number. The current STDOUT log can be found <a href="/logs/{{commit}}/stdout_{{count}}.txt">here</a> and the current STDERR log can be found <a href="/logs/{{commit}}/stderr_{{count}}.txt">here</a>.</p>
         <br>
+        <p>Pumpkin is currently using: {{memory}}</p>
+        <br>
         <p>Comments about this website? @kralverde can be found at this project's <a href="https://discord.gg/wT8XjrjKkf">discord</a>.</p>
     </div>
   </body>
 </html>"""
+
+cached_mem_result = ""
+cached_mem_time = 0
+
+
+async def get_memory(pid: str) -> str:
+    global cached_mem_result, cached_mem_time
+
+    now = time.time()
+    if cached_mem_result and now - cached_mem_time < 30:
+        return cached_mem_result
+
+    # Example output:
+    #    VSZ   RSS
+    # 420412 117276
+    proc = await asyncio.subprocess.create_subprocess_shell(
+        f"ps -o vsz,rss -p {pid}",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    exit_code = await proc.wait()
+    if exit_code != 0:
+        error = SubprocessError(
+            await proc.stdout.read() if proc.stdout else b"",
+            await proc.stderr.read() if proc.stderr else b"",
+        )
+        print("Failed to get memory for process!")
+        print(error)
+        return "Lookup failed"
+    else:
+        assert proc.stdout
+        await proc.stdout.readline()
+        data = await proc.stdout.readline()
+        virtual, real = data.strip().decode().split(" ")
+        virtual_mb = int(virtual) // 1000
+        real_mb = int(real) // 1000
+        result = f"{virtual_mb}MB virtual, {real_mb}MB real"
+
+        cached_mem_result = result
+        cached_mem_time = now
+        return result
 
 
 async def handle_index(
     commit_wrapper: List[Union[str, int]],
     request: web.Request,
 ):
+    memory_str = "Unknown..."
+    if commit_wrapper[4]:
+        pid = str(commit_wrapper[4])
+        memory_str = await get_memory(pid)
+
     return web.Response(
         body=INDEX_DATA.replace("{{commit}}", str(commit_wrapper[0]))
         .replace("{{count}}", str(commit_wrapper[1]))
@@ -258,7 +307,8 @@ async def handle_index(
             ""
             if not commit_wrapper[3]
             else f'<p style="color:red;"><b>{commit_wrapper[3]}</b></p>',
-        ),
+        )
+        .replace("{{memory}}", memory_str),
         content_type="text/html",
     )
 
@@ -535,7 +585,9 @@ async def binary_runner(
 
         can_access_mc[0] = True
         commit_wrapper[3] = ""
+        commit_wrapper[4] = proc.pid
         new_commit = await wait_for_process_or_signal(proc, update_queue)
+        commit_wrapper[4] = ""
 
         stdout_log.close()
         stderr_log.close()
@@ -623,7 +675,7 @@ async def async_main(
     mc_queue = asyncio.Queue()
     mc_lock = asyncio.Lock()
 
-    commit_wrapper = ["0", 0, "default", ""]
+    commit_wrapper = ["0", 0, "default", "", ""]
     can_access_mc = [False]
 
     webhook_task = asyncio.create_task(
