@@ -254,7 +254,7 @@ async def get_memory(pid: str) -> str:
     global cached_mem_result, cached_mem_time
 
     now = time.time()
-    if cached_mem_result and now - cached_mem_time < 30:
+    if cached_mem_result and now - cached_mem_time < 5:
         return cached_mem_result
 
     # Example output:
@@ -281,7 +281,7 @@ async def get_memory(pid: str) -> str:
         virtual, real = data.strip().decode().split(" ")
         virtual_mb = int(virtual) // 1000
         real_mb = int(real) // 1000
-        result = f"{virtual_mb}MB virtual, {real_mb}MB real"
+        result = f"{virtual_mb}MB of virtual memory and {real_mb}MB of real memory."
 
         cached_mem_result = result
         cached_mem_time = now
