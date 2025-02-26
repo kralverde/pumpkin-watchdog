@@ -436,6 +436,8 @@ async def handle_mc(
         print(traceback.format_exc())
         print(f"Failed to handle minecraft: {e}")
 
+    writer.close()
+
 
 async def deadlock_checker(
     port: int, commit_wrapper: List[Union[str, int]], can_access_mc: List[bool]
@@ -474,10 +476,20 @@ async def minecraft_runner(
     while True:
         await mc_lock.acquire()
 
-        print("starting minecraft notifier")
-        server = await asyncio.start_server(
-            lambda x, y: handle_mc(message, x, y), host, port
-        )
+        while True:
+            print("starting minecraft notifier")
+            try:
+                server = await asyncio.start_server(
+                    lambda x, y: handle_mc(message, x, y),
+                    host,
+                    port,
+                )
+                break
+            except OSError as e:
+                print("Failed to start minecraft notifier!")
+                print(e)
+                print("Sleeping for 5 minutes")
+                await asyncio.sleep(5 * 60)
 
         addrs = ", ".join(str(sock.getsockname()) for sock in server.sockets)
         print(f"Serving minecraft notifier on {addrs}")
