@@ -460,6 +460,9 @@ async def deadlock_checker(
             if can_access_mc[0]:
                 commit_wrapper[3] = "Deadlock detected!"
                 print("Deadlock detected!")
+        except Exception as e:
+            print(f"Got error with deadlock checker: {e}")
+            pass
 
         writer.close()
         await writer.wait_closed()
