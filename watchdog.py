@@ -2,7 +2,6 @@ import asyncio
 import json
 import os
 import signal
-import socket
 import sys
 import time
 import traceback
@@ -482,15 +481,12 @@ async def minecraft_runner(
 
         while True:
             print("starting minecraft notifier")
-
-            # If we previously terminated the pumpkin instance we might get a "address already in use" error otherwise
-            server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server_socket.bind((host, port))
-
             try:
                 server = await asyncio.start_server(
-                    lambda x, y: handle_mc(message, x, y), sock=server_socket
+                    lambda x, y: handle_mc(message, x, y),
+                    host,
+                    port,
+                    reuse_address=True,
                 )
                 break
             except OSError as e:
