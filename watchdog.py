@@ -86,10 +86,7 @@ async def update_git_repo(repo_dir: str):
         )
 
 
-async def clean_binary(repo_dir: str):
-    print("cleaning build dir")
-    os.chdir(repo_dir)
-
+async def clean_current_directory():
     proc = await asyncio.subprocess.create_subprocess_shell(
         "cargo clean",
         stdout=asyncio.subprocess.PIPE,
@@ -103,7 +100,34 @@ async def clean_binary(repo_dir: str):
         )
 
 
-async def build_binary(repo_dir: str):
+async def clean_binary(repo_dir: str, plugins_dir: str):
+    print("cleaning build dir")
+    os.chdir(repo_dir)
+    await clean_current_directory()
+
+    print("cleaning plugins dir")
+    for path in os.scandir(plugins_dir):
+        os.chdir(path.path)
+        await clean_current_directory()
+
+
+async def build_plugins(repo_dir: str, plugins_dir: str):
+    plugin_final_dir = os.path.join(repo_dir, "")
+    for plugin_path in os.scandir(plugins_dir):
+        await build_repo(plugin_path.path)
+        plugin_output_dir = os.path.join(plugin_path.path, "./target/release/")
+        for path in os.scandir(plugin_output_dir):
+            _, ext = os.path.splitext(path.path)
+            if ext == ".so":
+                final_path = os.path.join(plugin_final_dir, path.name)
+                print(f"moving {path.path} to {final_path}")
+                os.rename(path.path, final_path)
+                break
+        else:
+            print(f"[WARN] Couldn't find a plugin for {plugin_path}")
+
+
+async def build_repo(repo_dir: str):
     print("building binary")
     os.chdir(repo_dir)
 
@@ -238,6 +262,8 @@ INDEX_DATA = """<!DOCTYPE html>
         <p>This server is running <a href=https://github.com/Snowiiii/Pumpkin>Pumpkin MC</a> -- a Rust-written vanilla minecraft server -- straight from the master branch, updated when commits are made to the master branch (currently running <a href="https://github.com/Snowiiii/Pumpkin/commit/{{commit}}">({{short_commit}}) {{name}}</a>).</p>
         <p>You can join and test with your Minecraft client at <b>pumpkin.kralverde.dev</b> on port <b>25565</b>. The goal of this particular server is just to have something public-facing to have lay-users try out and to stress test and see what real-world issues may come up. Feel free to do whatever to the <b>Minecraft</b> server; after all, the best way to find bugs is to open it to the public :p</p>
         <p>Logs can be found <a href=/logs>here</a> and are sorted by the commit that was running and the count of each (re)start of the Pumpkin binary. The current instance's logs can be found under the current commit hash directory with the highest number. The current STDOUT log can be found <a href="/logs/{{commit}}/stdout_{{count}}.txt">here</a> and the current STDERR log can be found <a href="/logs/{{commit}}/stderr_{{count}}.txt">here</a>.</p>
+        <br>
+        <p>This server instance is also running the latest version of <a href=https://github.com/PumpkinPlugins/CommandLimiter>a permissions plugin</a>.</p>
         <br>
         <p>Pumpkin is currently using: {{memory}}</p>
         <br>
@@ -520,6 +546,7 @@ async def minecraft_runner(
 
 async def binary_runner(
     repo_dir: str,
+    plugins_dir: str,
     log_dir: str,
     commit_wrapper: List[Union[str, int]],
     update_queue: asyncio.Queue[str],
@@ -530,6 +557,13 @@ async def binary_runner(
     try:
         await mc_queue.put("Updating Repo...")
         await update_git_repo(repo_dir)
+    except SubprocessError as e:
+        print(f"!WARNING! Failed to update repo: {e}")
+
+    try:
+        await mc_queue.put("Updating Plugin Repos...")
+        for path in os.scandir(plugins_dir):
+            await update_git_repo(path.path)
     except SubprocessError as e:
         print(f"!WARNING! Failed to update repo: {e}")
 
@@ -544,8 +578,18 @@ async def binary_runner(
 
     while True:
         try:
+            await mc_queue.put("Building Plugins...")
+            await build_plugins(repo_dir, plugins_dir)
+            break
+        except SubprocessError as e:
+            await mc_queue.put("Failed to build plugins!")
+            print(f"!WARNING! Failed to build binary: {e}\nSleeping for 10 minutes...")
+            await asyncio.sleep(10 * 60)
+
+    while True:
+        try:
             await mc_queue.put("Building Binary...")
-            await build_binary(repo_dir)
+            await build_repo(repo_dir)
             break
         except SubprocessError as e:
             await mc_queue.put("Failed to build binary!")
@@ -632,6 +676,15 @@ async def binary_runner(
                 continue
 
             try:
+                await mc_queue.put("Updating Plugin Repos...")
+                for path in os.scandir(plugins_dir):
+                    await update_git_repo(path.path)
+            except SubprocessError as e:
+                print(f"!WARNING! Failed to update plugin repo: {e}")
+                commit_wrapper[3] = "Unable to update the plugin repos!"
+                continue
+
+            try:
                 await update_rust()
             except SubprocessError as e:
                 await mc_queue.put("Failed to update rust!")
@@ -641,13 +694,24 @@ async def binary_runner(
 
             if total_counter % 50 == 0:
                 try:
-                    await clean_binary(repo_dir)
+                    await clean_binary(repo_dir, plugins_dir)
                 except SubprocessError as e:
                     print(f"!WARNING! Failed to clean build dir: {e}")
 
             try:
+                await mc_queue.put("Building Plugins...")
+                await build_plugins(repo_dir, plugins_dir)
+            except SubprocessError as e:
+                await mc_queue.put("Failed to build plugins!")
+                print(
+                    f"!WARNING! Failed to build binary: {e}\nSleeping for 10 minutes..."
+                )
+                commit_wrapper[3] = "Unable to build plugins"
+                continue
+
+            try:
                 await mc_queue.put("Building Binary...")
-                await build_binary(repo_dir)
+                await build_repo(repo_dir)
             except SubprocessError as e:
                 await mc_queue.put("Failed to build binary!")
                 print(f"!WARNING! Failed to build binary: {e}")
@@ -682,6 +746,7 @@ async def binary_runner(
 async def async_main(
     repo_path: str,
     log_path: str,
+    plugins_path,
     webhook_host: str,
     webhook_port: int,
     mc_host: str,
@@ -705,6 +770,7 @@ async def async_main(
     binary_task = asyncio.create_task(
         binary_runner(
             repo_path,
+            plugins_path,
             log_path,
             commit_wrapper,
             update_queue,
@@ -743,10 +809,12 @@ async def async_main(
 def main():
     repo_path = sys.argv[1]
     log_path = sys.argv[2]
+    plugins_path = sys.argv[3]
     asyncio.run(
         async_main(
             os.path.realpath(repo_path),
             os.path.realpath(log_path),
+            os.path.realpath(plugins_path),
             "127.0.0.1",
             8888,
             "0.0.0.0",
