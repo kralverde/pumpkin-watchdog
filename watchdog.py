@@ -128,7 +128,6 @@ async def build_plugins(repo_dir: str, plugins_dir: str):
 
 
 async def build_repo(repo_dir: str):
-    print("building binary")
     os.chdir(repo_dir)
 
     env = os.environ.copy()
