@@ -112,9 +112,9 @@ async def clean_binary(repo_dir: str, plugins_dir: str):
 
 
 async def build_plugins(repo_dir: str, plugins_dir: str):
-    plugin_final_dir = os.path.join(repo_dir, "")
+    plugin_final_dir = os.path.join(repo_dir, "./plugins")
     for plugin_path in os.scandir(plugins_dir):
-        await build_repo(plugin_path.path)
+        await build_repo(plugin_path.path, False)
         plugin_output_dir = os.path.join(plugin_path.path, "./target/release/")
         for path in os.scandir(plugin_output_dir):
             _, ext = os.path.splitext(path.path)
@@ -127,11 +127,13 @@ async def build_plugins(repo_dir: str, plugins_dir: str):
             print(f"[WARN] Couldn't find a plugin for {plugin_path}")
 
 
-async def build_repo(repo_dir: str):
+async def build_repo(repo_dir: str, target_native: bool):
     os.chdir(repo_dir)
 
     env = os.environ.copy()
-    env["RUSTFLAGS"] = "-C target-cpu=native"
+
+    if target_native:
+        env["RUSTFLAGS"] = "-C target-cpu=native"
     proc = await asyncio.subprocess.create_subprocess_shell(
         "cargo build --release --config profile.release.debug=true",
         stdout=asyncio.subprocess.PIPE,
@@ -588,7 +590,7 @@ async def binary_runner(
     while True:
         try:
             await mc_queue.put("Building Binary...")
-            await build_repo(repo_dir)
+            await build_repo(repo_dir, True)
             break
         except SubprocessError as e:
             await mc_queue.put("Failed to build binary!")
@@ -710,7 +712,7 @@ async def binary_runner(
 
             try:
                 await mc_queue.put("Building Binary...")
-                await build_repo(repo_dir)
+                await build_repo(repo_dir, True)
             except SubprocessError as e:
                 await mc_queue.put("Failed to build binary!")
                 print(f"!WARNING! Failed to build binary: {e}")
