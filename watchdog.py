@@ -491,8 +491,12 @@ async def deadlock_checker(
             print(f"Got error with deadlock checker: {e}")
             pass
 
-        writer.close()
-        await writer.wait_closed()
+        try:
+            writer.close()
+            await writer.wait_closed()
+        except Exception as e:
+            print(f"Got error closing deadlock checker: {e}")
+            pass
 
 
 async def minecraft_runner(
