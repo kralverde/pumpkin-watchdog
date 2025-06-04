@@ -473,7 +473,11 @@ async def deadlock_checker(
         await asyncio.sleep(60 * 10)
         if not can_access_mc[0]:
             continue
-        reader, writer = await asyncio.open_connection("127.0.0.1", port)
+
+        try:
+            reader, writer = await asyncio.open_connection("127.0.0.1", port)
+        except Exception:
+            continue
 
         writer.write(b"\x06\x00\x00\x00\x00\x00\x01\x01\x00")
         await writer.drain()
