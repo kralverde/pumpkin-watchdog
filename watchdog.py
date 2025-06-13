@@ -74,7 +74,7 @@ async def update_git_repo(repo_dir: str):
         )
 
     proc = await asyncio.subprocess.create_subprocess_shell(
-        "git pull origin master",
+        "git pull origin master --rebase",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
